@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Pre-Wedding Memories</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
+        header {
+            text-align: center;
+            padding: 50px 20px;
+            background: linear-gradient(to bottom, #ff7eb3, #ff758c);
+            color: white;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 3em;
+        }
+        header p {
+            font-size: 1.2em;
+        }
+        .carousel {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            background-color: #fff;
+            padding: 20px 0;
+            display: flex;
+            align-items: center;
+        }
+        .carousel-track {
+            display: flex;
+            gap: 20px;
+            animation: none;
+        }
+        .carousel-track .carousel-image-wrapper {
+            width: 300px;
+            height: 200px; /* Consistent aspect ratio */
+            background-color: #fce8d5; /* Champagne background color */
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .carousel-track img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* Fit within the container without cropping */
+            background-color: transparent;
+        }
+        .rsvp-section {
+            text-align: center;
+            padding: 40px 20px;
+            background-color: #e3f2fd;
+            color: #1e88e5;
+        }
+        .rsvp-section h2 {
+            margin-bottom: 20px;
+        }
+        .rsvp-section a {
+            display: inline-block;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            text-decoration: none;
+            background-color: #1e88e5;
+            color: white;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .rsvp-section a:hover {
+            background-color: #1565c0;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Our Pre-Wedding Memories</h1>
+        <p>A glimpse into our love story before the big day</p>
+    </header>
+    <section class="carousel">
+        <div class="carousel-track">
+            <div class="carousel-image-wrapper">
+                <img src="photo1.jpg" alt="Photo 1">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo2.jpg" alt="Photo 2">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo3.jpg" alt="Photo 3">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo4.jpg" alt="Photo 4">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo5.jpg" alt="Photo 5">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo6.jpg" alt="Photo 6">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo7.jpg" alt="Photo 7">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo8.jpg" alt="Photo 8">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo9.jpg" alt="Photo 9">
+            </div>
+            <div class="carousel-image-wrapper">
+                <img src="photo10.jpg" alt="Photo 10">
+            </div>
+        </div>
+    </section>
+    <section class="rsvp-section">
+        <h2>We would love for you to join us!</h2>
+        <a href="https://your-rsvp-link.com" target="_blank">RSVP Here</a>
+    </section>
+    <footer>
+        <p>&copy; 2024 [Your Names]. All Rights Reserved.</p>
+    </footer>
+
+    <script>
+        // JavaScript for smooth infinite scroll
+        const carouselTrack = document.querySelector('.carousel-track');
+        const images = carouselTrack.querySelectorAll('.carousel-image-wrapper');
+        const totalImages = images.length;
+
+        // Clone images to ensure seamless scrolling
+        images.forEach((wrapper) => {
+            const clone = wrapper.cloneNode(true);
+            carouselTrack.appendChild(clone);
+        });
+
+        let scrollAmount = 0;
+
+        function smoothScroll() {
+            scrollAmount -= 1; // Adjust scrolling speed
+            if (Math.abs(scrollAmount) >= carouselTrack.offsetWidth / 2) {
+                scrollAmount = 0; // Reset scrolling position when halfway
+            }
+            carouselTrack.style.transform = `translateX(${scrollAmount}px)`;
+            requestAnimationFrame(smoothScroll);
+        }
+
+        smoothScroll();
+    </script>
+</body>
+</html>
