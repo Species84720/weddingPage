@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Wedding Journey</title>
+    <style>
+        body {
+            font-family: 'Georgia', serif;
+            margin: 0;
+            padding: 0;
+            background-color: #faf9f6;
+            color: #333;
+        }
+
+        header {
+            position: relative;
+            text-align: center;
+            padding: 0px 0px 20px;
+            background: #fff;
+            border-bottom: 2px solid #e8d3b9;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 3em;
+            color: #a67654;
+            font-family: 'Times New Roman', serif;
+            font-weight: normal;
+        }
+
+        header p {
+            margin-top: 10px;
+            font-size: 1.3em;
+            color: #777;
+        }
+
+        .carousel {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            padding: 40px 0;
+            background-color: #f7f3e9;
+            display: flex;
+            align-items: center;
+        }
+
+        .carousel-track {
+            display: flex;
+            gap: 30px;
+            animation: none;
+        }
+
+        .carousel-track .carousel-image-wrapper {
+            width: 300px;
+            height: 200px;
+            background-color: #f7f3e9;
+            border: 1px solid #e8d3b9;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+
+        .carousel-track img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .popup-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .popup-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            position: relative;
+        }
+
+        .popup-content img {
+            max-width: 80vw;
+            max-height: 80vh;
+            object-fit: contain;
+        }
+
+        .popup-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 30px;
+            color: #a67654;
+            cursor: pointer;
+        }
+
+        .popup-navigation {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 30px;
+            color: #a67654;
+            cursor: pointer;
+        }
+
+        .popup-prev {
+            left: 10px;
+        }
+
+        .popup-next {
+            right: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: #333;
+            color: #f8f8f8;
+        }
+
+        ul.horizontal {
+            list-style-type: none;
+            margin: 0px 0px 20px;
+            padding: 20px;
+            overflow: hidden;
+            background-color: #f7f3e9;
+            border-bottom: 2px solid #e8d3b9;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <ul class="horizontal">
+            <li class="rightli" style="float:right"><a href="https://forms.office.com/e/CFT9Y0pesr" target="_blank" class="rsvp-button">RSVP Here</a></li>
+        </ul>
+        <h1>Our Wedding Journey</h1>
+        <p>Celebrate love, laughter, and forever with us</p>
+    </header>
+
+    <section class="carousel">
+        <div class="carousel-track">
+            <div class="carousel-image-wrapper" data-index="0">
+                <img src="photo1.jpg" alt="Photo 1">
+            </div>
+            <div class="carousel-image-wrapper" data-index="1">
+                <img src="photo2.jpg" alt="Photo 2">
+            </div>
+            <div class="carousel-image-wrapper" data-index="2">
+                <img src="photo3.jpg" alt="Photo 3">
+            </div>
+            <!-- Add more images as needed -->
+        </div>
+    </section>
+
+    <section class="details-section">
+        <h2>The Details</h2>
+        <p>Join us as we tie the knot on our special day! We look forward to sharing this wonderful moment with you.</p>
+        <ul>
+            <li><strong>Date:</strong> Friday, April 25, 2025</li>
+            <li><strong>Time:</strong> Ceremony at 5:00 PM, Reception to follow</li>
+            <li><strong>Location:</strong> Parish Church, Birżebbuġia</li>
+            <li><strong>Reception Location:</strong> Villa Blache, Hal Far</li>
+        </ul>
+    </section>
+
+    <footer>
+        <p>&copy; 2025 Juan & Katrina. Made with love for our special day.</p>
+    </footer>
+
+    <!-- Popup Modal -->
+    <div class="popup-modal" id="popup-modal">
+        <div class="popup-content">
+            <span class="popup-close" id="popup-close">&times;</span>
+            <img src="" alt="Large Image" id="popup-image">
+            <span class="popup-navigation popup-prev" id="popup-prev">&#10094;</span>
+            <span class="popup-navigation popup-next" id="popup-next">&#10095;</span>
+        </div>
+    </div>
+
+    <script>
+        const carouselTrack = document.querySelector('.carousel-track');
+        const images = carouselTrack.querySelectorAll('.carousel-image-wrapper');
+        const popupModal = document.getElementById('popup-modal');
+        const popupImage = document.getElementById('popup-image');
+        const popupClose = document.getElementById('popup-close');
+        const popupPrev = document.getElementById('popup-prev');
+        const popupNext = document.getElementById('popup-next');
+        let currentIndex = 0;
+        let scrollAmount = 0;
+        let scrollInterval;
+
+        // Function to show the image in the popup
+        function showPopup(index) {
+            currentIndex = index;
+            const imgSrc = images[index].querySelector('img').src;
+            popupImage.src = imgSrc;
+            popupModal.style.display = 'flex';
+            clearInterval(scrollInterval); // Pause the scrolling
+        }
+
+        // Close the popup
+        popupClose.addEventListener('click', () => {
+            popupModal.style.display = 'none';
+            scrollInterval = setInterval(smoothScroll, 10); // Resume scrolling
+        });
+
+        // Navigate to previous image
+        popupPrev.addEventListener('click', () => {
+            currentIndex = (currentIndex - 1 + images.length) % images.length;
+            showPopup(currentIndex);
+        });
+
+        // Navigate to next image
+        popupNext.addEventListener('click', () => {
+            currentIndex = (currentIndex + 1) % images.length;
+            showPopup(currentIndex);
+        });
+
+        // Add click event to each image to open the popup
+        images.forEach((wrapper, index) => {
+            wrapper.addEventListener('click', () => {
+                showPopup(index);
+            });
+        });
+
+        // Smooth scroll function for carousel
+        function smoothScroll() {
+            scrollAmount -= 1;
+            if (Math.abs(scrollAmount) >= carouselTrack.offsetWidth / 2) {
+                scrollAmount = 0;
+            }
+            carouselTrack.style.transform = `translateX(${scrollAmount}px)`;
+        }
+
+        scrollInterval = setInterval(smoothScroll, 10);
+    </script>
+</body>
+</html>
