@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wedding Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,300;0,400;1,300&family=Lato:wght@300;400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <!-- SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --editor-bg:    #0d0d18;
+      --sidebar-bg:   #13131f;
+      --sidebar2-bg:  #ffffff;
+      --topbar-bg:    #0d0d18;
+      --border:       #1e1e32;
+      --border2:      #eaeaf0;
+      --accent:       #7c6ef0;
+      --accent2:      #a099f8;
+      --text1:        #e8e8f0;
+      --text2:        #9090a8;
+      --text3:        #5a5a72;
+      --canvas-bg:    #f2f2f8;
+      --hover:        rgba(124,110,240,.08);
+      --selected-border: #7c6ef0;
+      --success:      #4caf87;
+      --danger:       #e05b6a;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'Inter', sans-serif; background: var(--editor-bg); color: var(--text1);
+      display: grid; grid-template-rows: 58px 1fr; }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a42; border-radius: 3px; }
+
+    /* ══════════ TOP BAR ══════════ */
+    .topbar { background: var(--topbar-bg); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 100; }
+    .tb-logo { font-family: 'Playfair Display'; font-style: italic; font-size: 1.1rem;
+      color: var(--accent2); white-space: nowrap; margin-right: 8px; }
+    .tb-sep { width: 1px; height: 32px; background: var(--border); }
+    .tb-label { font-size: .72rem; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; }
+    .tb-select { background: #1a1a2e; border: 1px solid var(--border); color: var(--text1);
+      padding: 6px 10px; font-size: .85rem; font-family: 'Inter'; border-radius: 4px;
+      cursor: pointer; min-width: 180px; outline: none; }
+    .tb-btn { padding: 7px 14px; border-radius: 5px; border: 1px solid var(--border);
+      background: transparent; color: var(--text2); font-size: .8rem; font-family: 'Inter';
+      cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .tb-btn:hover { background: var(--hover); color: var(--text1); border-color: var(--accent); }
+    .tb-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .tb-btn.primary:hover { background: #6859d8; }
+    .tb-btn.success { background: var(--success); color: #fff; border-color: var(--success); }
+    .tb-btn.danger { color: var(--danger); }
+    .tb-user { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .tb-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+      object-fit: cover; }
+    .tb-name { font-size: .8rem; color: var(--text2); max-width: 120px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .save-indicator { font-size: .72rem; color: var(--text3); display: none; }
+    .save-indicator.show { display: block; }
+
+    /* ══════════ EDITOR BODY ══════════ */
+    .editor-body { display: grid; grid-template-columns: 250px 1fr 300px; overflow: hidden; }
+
+    /* ══════════ LEFT SIDEBAR ══════════ */
+    .sidebar-left { background: var(--sidebar-bg); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden; }
+    .sl-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+    .sl-title { font-size: .7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text3); }
+    .sl-body { overflow-y: auto; padding: 8px; flex: 1; }
+    .sl-category { font-size: .65rem; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text3); padding: 12px 8px 6px; }
+    .palette-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 6px; cursor: grab; transition: background .15s;
+      border: 1px solid transparent; margin-bottom: 3px; }
+    .palette-item:hover { background: var(--hover); border-color: var(--border); }
+    .palette-item:active { cursor: grabbing; }
+    .pi-icon { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center;
+      justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .pi-icon.c-hero    { background: #1e3a2f; }
+    .pi-icon.c-text    { background: #1a1a3e; }
+    .pi-icon.c-image   { background: #2a1a3e; }
+    .pi-icon.c-carousel{ background: #1a2a3e; }
+    .pi-icon.c-countdown{ background: #2a1e1a; }
+    .pi-icon.c-details { background: #1a2a1a; }
+    .pi-icon.c-rsvp    { background: #2a1a2a; }
+    .pi-icon.c-gallery { background: #1e1a2a; }
+    .pi-icon.c-divider { background: #2a2a1a; }
+    .pi-icon.c-quote   { background: #2a1a1a; }
+    .pi-label { font-size: .82rem; color: var(--text1); font-weight: 500; }
+    .pi-desc  { font-size: .7rem; color: var(--text3); margin-top: 1px; }
+
+    /* ══════════ CANVAS AREA ══════════ */
+    .canvas-area { background: var(--canvas-bg); overflow-y: auto; position: relative; }
+    .canvas-page { background: #fff; max-width: 900px; margin: 30px auto 80px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.15); min-height: 400px; position: relative; }
+    .canvas-empty { padding: 80px 40px; text-align: center; color: #c0c0d8; }
+    .canvas-empty .ce-icon { font-size: 3rem; margin-bottom: 16px; opacity: .5; }
+    .canvas-empty p { font-size: .9rem; line-height: 1.8; }
+    .canvas-empty small { font-size: .78rem; color: #a0a0b8; }
+
+    /* ─── Canvas Blocks ─── */
+    .canvas-block { position: relative; border: 2px solid transparent; transition: border-color .15s; }
+    .canvas-block:hover { border-color: #c8c4f5; }
+    .canvas-block.selected { border-color: var(--selected-border) !important; }
+    .block-toolbar { position: absolute; top: -2px; left: -2px; z-index: 10;
+      display: flex; align-items: center; gap: 0; opacity: 0; transition: opacity .15s;
+      background: var(--selected-border); border-radius: 0 0 6px 0; }
+    .canvas-block:hover .block-toolbar,
+    .canvas-block.selected .block-toolbar { opacity: 1; }
+    .block-drag { padding: 5px 8px; cursor: grab; color: rgba(255,255,255,.8); font-size: 1rem; }
+    .block-drag:active { cursor: grabbing; }
+    .bt-name { padding: 5px 8px 5px 2px; font-size: .7rem; color: rgba(255,255,255,.9);
+      font-weight: 600; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; }
+    .bt-actions { display: flex; border-left: 1px solid rgba(255,255,255,.2); }
+    .bt-btn { padding: 5px 8px; cursor: pointer; color: rgba(255,255,255,.7); background: none;
+      border: none; font-size: .85rem; transition: color .15s; }
+    .bt-btn:hover { color: #fff; }
+    .bt-btn.del:hover { color: #ff8a90; }
+    .add-block-btn { display: flex; align-items: center; justify-content: center;
+      padding: 6px; opacity: 0; transition: opacity .2s; cursor: pointer; }
+    .canvas-block:hover + .add-block-btn,
+    .add-block-btn:hover { opacity: 1; }
+    .add-block-inner { background: var(--accent); color: #fff; border: none; border-radius: 20px;
+      padding: 4px 14px; font-size: .75rem; cursor: pointer; font-family: 'Inter'; }
+    /* sortable ghost & drag */
+    .sortable-ghost { opacity: .35; border: 2px dashed var(--accent) !important; background: #f0eeff; }
+    .sortable-drag   { opacity: .9; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+
+    /* ── BLOCK PREVIEW STYLES (inside canvas-page) ── */
+    .preview-hero { background: #2d4a3e; color: #fff; padding: 50px 40px; text-align: center;
+      position: relative; overflow: hidden; min-height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+    .preview-hero-bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
+    .preview-hero-overlay { position: absolute; inset: 0; }
+    .preview-hero-content { position: relative; z-index: 1; }
+    .preview-hero h1 { font-family: 'Playfair Display'; font-size: 1.8rem; font-weight: 300; margin-bottom: 8px; }
+    .preview-hero .ph-sub { font-size: .75rem; letter-spacing: 4px; text-transform: uppercase; opacity: .7; }
+    .preview-hero .ph-date { font-family: 'Playfair Display'; font-style: italic; color: #c9a96e; margin-top: 12px; font-size: 1rem; }
+    .preview-hero .ph-venue { font-size: .7rem; letter-spacing: 3px; text-transform: uppercase; opacity: .5; margin-top: 6px; }
+    .preview-text { padding: 24px 32px; }
+    .preview-text h2 { font-family: 'Playfair Display'; font-size: 1.1rem; font-weight: 400; color: #2d4a3e; margin-bottom: 8px; }
+    .preview-text p { font-size: .82rem; color: #888; line-height: 1.7; }
+    .preview-image { }
+    .preview-image img { width: 100%; max-height: 180px; object-fit: cover; display: block; }
+    .preview-image .pi-ph { height: 100px; background: #e8e8f0; display: flex; align-items: center;
+      justify-content: center; font-size: .8rem; color: #b0b0c8; }
+    .preview-carousel { background: #111; height: 110px; display: flex; align-items: center;
+      justify-content: center; gap: 4px; overflow: hidden; }
+    .preview-carousel img { height: 110px; width: calc(100%/3); object-fit: cover; }
+    .preview-carousel .car-ph { color: #555; font-size: .85rem; }
+    .preview-countdown { background: #2d4a3e; color: #fff; padding: 24px; text-align: center; }
+    .preview-countdown .pcd-label { font-size: .68rem; letter-spacing: 4px; text-transform: uppercase; opacity: .5; margin-bottom: 14px; }
+    .preview-countdown .pcd-units { display: flex; justify-content: center; gap: 20px; }
+    .preview-countdown .pcd-n { font-family: 'Playfair Display'; font-size: 1.6rem; color: #c9a96e; display: block; line-height: 1; }
+    .preview-countdown .pcd-l { font-size: .6rem; letter-spacing: 2px; opacity: .4; text-transform: uppercase; }
+    .preview-details { background: #f0e6d3; padding: 24px; }
+    .preview-details .pd-cards { display: flex; gap: 10px; }
+    .preview-details .pd-card { background: #fff; padding: 14px; flex: 1; text-align: center; }
+    .preview-details .pd-ico { font-size: 1.2rem; margin-bottom: 6px; }
+    .preview-details .pd-t { font-size: .72rem; font-weight: 600; color: #2d4a3e; }
+    .preview-details .pd-c { font-size: .7rem; color: #888; margin-top: 3px; }
+    .preview-rsvp { padding: 24px 32px; text-align: center; }
+    .preview-rsvp h3 { font-family: 'Playfair Display'; font-size: 1.1rem; font-weight: 400; color: #2d4a3e; margin-bottom: 14px; }
+    .preview-rsvp .pr-field { height: 26px; background: #f5f5f8; border: 1px solid #eee; margin-bottom: 6px; display: flex; align-items: center; padding: 0 10px; font-size: .72rem; color: #bbb; }
+    .preview-gallery { padding: 16px; }
+    .preview-gallery .pg-grid { display: grid; gap: 4px; }
+    .preview-gallery .pg-cell { aspect-ratio: 1; background: #e0e0e8; overflow: hidden; }
+    .preview-gallery .pg-cell img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-divider { padding: 14px 32px; display: flex; align-items: center; }
+    .preview-divider .pdiv-line { flex: 1; height: 1px; background: #e0d0c0; }
+    .preview-divider .pdiv-center { padding: 0 14px; font-size: .9rem; color: #c9a96e; opacity: .6; }
+    .preview-quote { padding: 24px 40px; text-align: center; }
+    .preview-quote p { font-family: 'Playfair Display'; font-style: italic; font-size: .9rem; color: #555; line-height: 1.6; }
+    .preview-quote cite { font-size: .7rem; color: #aaa; margin-top: 8px; display: block; }
+
+    /* ══════════ RIGHT PANEL ══════════ */
+    .sidebar-right { background: var(--sidebar2-bg); border-left: 1px solid var(--border2);
+      display: flex; flex-direction: column; overflow: hidden; }
+    .sr-header { padding: 16px; border-bottom: 1px solid var(--border2); }
+    .sr-title { font-size: .7rem; text-transform: uppercase; letter-spacing: 2px; color: #9090a8;
+      font-weight: 600; }
+    .sr-block-type { font-size: .85rem; color: #333; font-weight: 600; margin-top: 4px; }
+    .sr-body { overflow-y: auto; padding: 16px; flex: 1; }
+    .sr-empty { text-align: center; padding: 40px 20px; color: #c0c0c8; }
+    .sr-empty .se-icon { font-size: 2rem; margin-bottom: 12px; }
+    .sr-empty p { font-size: .82rem; line-height: 1.6; }
+    /* Form controls */
+    .prop-group { margin-bottom: 20px; }
+    .prop-label { font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; color: #888;
+      font-weight: 600; margin-bottom: 6px; display: block; }
+    .prop-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e8; border-radius: 5px;
+      font-size: .85rem; font-family: 'Inter'; color: #333; outline: none; transition: border-color .2s; background: #fff; }
+    .prop-input:focus { border-color: var(--accent); }
+    .prop-textarea { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e8; border-radius: 5px;
+      font-size: .85rem; font-family: 'Inter'; color: #333; outline: none; resize: vertical;
+      min-height: 80px; transition: border-color .2s; }
+    .prop-textarea:focus { border-color: var(--accent); }
+    .prop-select { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e8; border-radius: 5px;
+      font-size: .85rem; font-family: 'Inter'; color: #333; outline: none; background: #fff; cursor: pointer; }
+    .prop-color { display: flex; align-items: center; gap: 8px; }
+    .prop-color input[type=color] { width: 36px; height: 36px; border: 1px solid #e0e0e8;
+      border-radius: 5px; cursor: pointer; padding: 2px; background: none; }
+    .prop-color input[type=text] { flex: 1; }
+    .prop-range { display: flex; align-items: center; gap: 10px; }
+    .prop-range input[type=range] { flex: 1; accent-color: var(--accent); }
+    .prop-range .rv { font-size: .8rem; color: #888; min-width: 32px; text-align: right; }
+    .prop-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .prop-toggle input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+    .prop-toggle label { font-size: .85rem; color: #555; cursor: pointer; }
+    .prop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .prop-btn { width: 100%; padding: 8px; background: var(--accent); color: #fff; border: none;
+      border-radius: 5px; font-family: 'Inter'; font-size: .8rem; cursor: pointer; margin-top: 6px; transition: background .2s; }
+    .prop-btn:hover { background: #6859d8; }
+    .prop-btn.secondary { background: #f5f5f8; color: #555; border: 1px solid #e0e0e8; }
+    .prop-btn.secondary:hover { background: #eaeaf5; }
+    .prop-btn.danger { background: #fee; color: var(--danger); border: 1px solid #fcc; }
+    .prop-btn.danger:hover { background: var(--danger); color: #fff; }
+    .prop-divider { border: none; border-top: 1px solid #f0f0f8; margin: 16px 0; }
+    /* Array items */
+    .array-item { background: #f8f8fc; border: 1px solid #e8e8f5; border-radius: 6px;
+      padding: 10px; margin-bottom: 8px; }
+    .array-item-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .array-item-num { font-size: .72rem; font-weight: 700; color: var(--accent); background: #ede8ff;
+      padding: 2px 6px; border-radius: 3px; }
+    .array-item-del { margin-left: auto; background: none; border: none; color: #ccc;
+      cursor: pointer; font-size: .9rem; transition: color .15s; }
+    .array-item-del:hover { color: var(--danger); }
+    /* Align buttons */
+    .align-btns { display: flex; gap: 4px; }
+    .align-btn { flex: 1; padding: 7px; background: #f5f5f8; border: 1px solid #e0e0e8;
+      border-radius: 5px; cursor: pointer; font-size: 1rem; transition: all .15s; }
+    .align-btn.on, .align-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+    /* ══════════ MODALS ══════════ */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1000;
+      display: none; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: 12px; width: 100%; max-width: 520px;
+      max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,.4); }
+    .modal.wide { max-width: 680px; }
+    .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid #f0f0f8;
+      display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 1rem; font-weight: 600; color: #222; }
+    .modal-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;
+      transition: color .15s; }
+    .modal-close:hover { color: #333; }
+    .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid #f0f0f8; display: flex;
+      justify-content: flex-end; gap: 10px; }
+    .mf-btn { padding: 9px 20px; border-radius: 6px; font-family: 'Inter'; font-size: .85rem;
+      cursor: pointer; border: 1px solid #e0e0e8; background: #fff; color: #555; transition: all .2s; }
+    .mf-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .mf-btn.primary:hover { background: #6859d8; }
+    .modal-input { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e8; border-radius: 6px;
+      font-size: .9rem; font-family: 'Inter'; color: #333; outline: none; margin-top: 4px;
+      transition: border-color .2s; }
+    .modal-input:focus { border-color: var(--accent); }
+
+    /* ── Sign-in modal ── */
+    .signin-modal { text-align: center; }
+    .signin-logo { font-family: 'Playfair Display'; font-style: italic; font-size: 1.8rem;
+      color: var(--accent); margin-bottom: 8px; }
+    .signin-sub { font-size: .85rem; color: #888; margin-bottom: 28px; line-height: 1.6; }
+    .google-btn { display: flex; align-items: center; gap: 12px; background: #fff;
+      border: 2px solid #e0e0e8; border-radius: 8px; padding: 12px 20px; cursor: pointer;
+      font-size: .9rem; font-family: 'Inter'; font-weight: 500; color: #333; transition: all .2s;
+      width: 100%; justify-content: center; }
+    .google-btn:hover { background: #f8f8ff; border-color: var(--accent); }
+    .google-icon { width: 20px; height: 20px; }
+
+    /* ── Theme modal ── */
+    .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .theme-swatch { display: flex; align-items: center; gap: 10px; }
+    .theme-swatch input[type=color] { width: 40px; height: 40px; border: 1px solid #e0e0e8;
+      border-radius: 8px; cursor: pointer; padding: 2px; background: none; flex-shrink: 0; }
+    .theme-swatch-info { flex: 1; }
+    .ts-label { font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; color: #888;
+      font-weight: 600; }
+    .ts-val { font-size: .82rem; color: #555; margin-top: 2px; }
+    .theme-font-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    /* ── Toast ── */
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: #1a1a2e; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: .85rem;
+      z-index: 9999; transition: transform .3s; pointer-events: none; white-space: nowrap; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.ok { border-left: 3px solid var(--success); }
+    .toast.err { border-left: 3px solid var(--danger); }
+
+    /* ── Loading overlay ── */
+    #app-loading { position: fixed; inset: 0; background: #0d0d18; z-index: 9000;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      transition: opacity .4s; }
+    #app-loading.out { opacity: 0; pointer-events: none; }
+    .al-logo { font-family: 'Playfair Display'; font-style: italic; font-size: 1.6rem;
+      color: var(--accent2); margin-bottom: 24px; }
+    .al-ring { width: 40px; height: 40px; border: 2px solid #1e1e32;
+      border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive canvas scaling ── */
+    @media (max-width: 900px) {
+      .editor-body { grid-template-columns: 220px 1fr 260px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ APP LOADING ══ -->
+<div id="app-loading">
+  <div class="al-logo">✦ Wedding Studio</div>
+  <div class="al-ring"></div>
+</div>
+
+<!-- ══ TOP BAR ══ -->
+<header class="topbar">
+  <div class="tb-logo">✦ Wedding Studio</div>
+  <div class="tb-sep"></div>
+  <span class="tb-label">Wedding</span>
+  <select class="tb-select" id="wedding-select" onchange="onWeddingSelect(this.value)">
+    <option value="">— Select a Wedding —</option>
+  </select>
+  <button class="tb-btn" onclick="openModal('new-wedding-modal')">＋ New</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="openModal('theme-modal')">🎨 Theme</button>
+  <button class="tb-btn" onclick="previewPage()">👁 Preview</button>
+  <button class="tb-btn primary" id="save-btn" onclick="saveWedding()">💾 Save</button>
+  <span class="save-indicator" id="save-indicator">Saved ✓</span>
+  <div class="tb-sep"></div>
+  <div class="tb-user">
+    <img class="tb-avatar" id="user-avatar" src="" alt="">
+    <span class="tb-name" id="user-name">Not signed in</span>
+    <button class="tb-btn danger" id="signout-btn" onclick="signOut()" style="display:none">Sign out</button>
+  </div>
+</header>
+
+<!-- ══ EDITOR BODY ══ -->
+<div class="editor-body">
+
+  <!-- LEFT SIDEBAR: Block Palette -->
+  <aside class="sidebar-left">
+    <div class="sl-header">
+      <div class="sl-title">Block Library</div>
+    </div>
+    <div class="sl-body" id="palette">
+      <div class="sl-category">Layout</div>
+      <div class="palette-item" data-type="hero">
+        <div class="pi-icon c-hero">🖼️</div>
+        <div><div class="pi-label">Hero</div><div class="pi-desc">Full-screen header</div></div>
+      </div>
+      <div class="palette-item" data-type="divider">
+        <div class="pi-icon c-divider">➖</div>
+        <div><div class="pi-label">Divider</div><div class="pi-desc">Section separator</div></div>
+      </div>
+
+      <div class="sl-category">Content</div>
+      <div class="palette-item" data-type="text">
+        <div class="pi-icon c-text">📝</div>
+        <div><div class="pi-label">Text</div><div class="pi-desc">Heading & paragraph</div></div>
+      </div>
+      <div class="palette-item" data-type="quote">
+        <div class="pi-icon c-quote">💬</div>
+        <div><div class="pi-label">Quote</div><div class="pi-desc">Styled quotation</div></div>
+      </div>
+      <div class="palette-item" data-type="details">
+        <div class="pi-icon c-details">📋</div>
+        <div><div class="pi-label">Details</div><div class="pi-desc">Info cards (date, venue…)</div></div>
+      </div>
+
+      <div class="sl-category">Media</div>
+      <div class="palette-item" data-type="image">
+        <div class="pi-icon c-image">🎨</div>
+        <div><div class="pi-label">Image</div><div class="pi-desc">Single photo</div></div>
+      </div>
+      <div class="palette-item" data-type="carousel">
+        <div class="pi-icon c-carousel">🎠</div>
+        <div><div class="pi-label">Carousel</div><div class="pi-desc">Image slideshow</div></div>
+      </div>
+      <div class="palette-item" data-type="gallery">
+        <div class="pi-icon c-gallery">🖼</div>
+        <div><div class="pi-label">Gallery</div><div class="pi-desc">Photo grid</div></div>
+      </div>
+
+      <div class="sl-category">Interactive</div>
+      <div class="palette-item" data-type="countdown">
+        <div class="pi-icon c-countdown">⏱️</div>
+        <div><div class="pi-label">Countdown</div><div class="pi-desc">Days until the day</div></div>
+      </div>
+      <div class="palette-item" data-type="rsvp">
+        <div class="pi-icon c-rsvp">📬</div>
+        <div><div class="pi-label">RSVP</div><div class="pi-desc">Guest response form</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTER: Canvas -->
+  <main class="canvas-area" id="canvas-area">
+    <div class="canvas-page" id="canvas-page">
+      <div class="canvas-empty" id="canvas-empty">
+        <div class="ce-icon">🌸</div>
+        <p>Your wedding page is empty.<br><strong>Drag blocks</strong> from the left panel onto this canvas.</p>
+        <small>Or click a block to add it at the end.</small>
+      </div>
+      <div id="canvas-inner"></div>
+    </div>
+  </main>
+
+  <!-- RIGHT SIDEBAR: Properties -->
+  <aside class="sidebar-right">
+    <div class="sr-header">
+      <div class="sr-title">Properties</div>
+      <div class="sr-block-type" id="sr-block-type">No block selected</div>
+    </div>
+    <div class="sr-body" id="sr-body">
+      <div class="sr-empty">
+        <div class="se-icon">✦</div>
+        <p>Click any block on the canvas to edit its properties here.</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ══ MODAL: Sign In ══ -->
+<div class="modal-overlay open" id="signin-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-body signin-modal" style="padding:40px">
+      <div class="signin-logo">✦ Wedding Studio</div>
+      <p class="signin-sub">Sign in to create and manage beautiful wedding pages hosted on Firebase.</p>
+      <button class="google-btn" onclick="signInWithGoogle()">
+        <svg class="google-icon" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: New Wedding ══ -->
+<div class="modal-overlay" id="new-wedding-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Create New Wedding Page</span>
+      <button class="modal-close" onclick="closeModal('new-wedding-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:16px">
+        <label class="prop-label">Couple's Names (used as URL ID)</label>
+        <input id="new-id" class="modal-input" placeholder="e.g. Andrea+Kylie" oninput="updateNewIdPreview()">
+        <small style="color:#aaa;font-size:.75rem;margin-top:4px;display:block">
+          Viewer URL: <code id="new-id-preview" style="color:var(--accent)">?weddingId=</code>
+        </small>
+      </div>
+      <div style="margin-bottom:16px">
+        <label class="prop-label">Display Title</label>
+        <input id="new-title" class="modal-input" placeholder="e.g. Andrea &amp; Kylie's Wedding">
+      </div>
+      <div>
+        <label class="prop-label">Wedding Date</label>
+        <input id="new-date" class="modal-input" type="date">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="mf-btn" onclick="closeModal('new-wedding-modal')">Cancel</button>
+      <button class="mf-btn primary" onclick="createWedding()">Create Page</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Theme ══ -->
+<div class="modal-overlay" id="theme-modal">
+  <div class="modal wide">
+    <div class="modal-header">
+      <span class="modal-title">🎨 Theme & Style</span>
+      <button class="modal-close" onclick="closeModal('theme-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.82rem;color:#999;margin-bottom:20px">Changes apply live to the canvas preview and the published page.</p>
+      
+      <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:2px;color:#aaa;font-weight:600;margin-bottom:12px">Colors</div>
+      <div class="theme-grid" id="theme-colors">
+        <!-- generated by JS -->
+      </div>
+      
+      <hr style="border:none;border-top:1px solid #f0f0f8;margin:20px 0">
+      
+      <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:2px;color:#aaa;font-weight:600;margin-bottom:12px">Typography</div>
+      <div class="theme-font-row">
+        <div>
+          <label class="prop-label">Heading Font</label>
+          <select class="prop-select" id="theme-font-heading" onchange="onThemeFont('fontHeading',this.value)">
+            <!-- generated by JS -->
+          </select>
+        </div>
+        <div>
+          <label class="prop-label">Body Font</label>
+          <select class="prop-select" id="theme-font-body" onchange="onThemeFont('fontBody',this.value)">
+            <!-- generated by JS -->
+          </select>
+        </div>
+      </div>
+      
+      <hr style="border:none;border-top:1px solid #f0f0f8;margin:20px 0">
+      <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:2px;color:#aaa;font-weight:600;margin-bottom:12px">Preset Palettes</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap" id="theme-presets">
+        <!-- generated by JS -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="mf-btn" onclick="resetTheme()">Reset to Default</button>
+      <button class="mf-btn primary" onclick="closeModal('theme-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let user       = null;
+let weddingId  = null;
+let blocks     = [];
+let theme      = { ...DEFAULT_THEME };
+let selectedId = null;
+let blockUid   = 0;
+let canvasSortable = null;
+let paletteSortable = null;
+
+// ═══════════════════════════════════════════════
+//  FIREBASE
+// ═══════════════════════════════════════════════
+firebase.initializeApp(FIREBASE_CONFIG);
+const db   = firebase.firestore();
+const auth = firebase.auth();
+
+auth.onAuthStateChanged(u => {
+  user = u;
+  if (u) {
+    document.getElementById('user-avatar').src = u.photoURL || '';
+    document.getElementById('user-name').textContent = u.displayName || u.email;
+    document.getElementById('signout-btn').style.display = '';
+    document.getElementById('signin-modal').classList.remove('open');
+    loadUserWeddings();
+  } else {
+    document.getElementById('signin-modal').classList.add('open');
+  }
+  document.getElementById('app-loading').classList.add('out');
+});
+
+async function signInWithGoogle() {
+  try {
+    await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  } catch(e) { toast('Sign-in failed: ' + e.message, 'err'); }
+}
+function signOut() {
+  auth.signOut();
+  blocks = []; weddingId = null; selectedId = null;
+  renderCanvas(); updateWeddingSelect([]);
+}
+
+// ═══════════════════════════════════════════════
+//  WEDDING MANAGEMENT
+// ═══════════════════════════════════════════════
+async function loadUserWeddings() {
+  try {
+    const snap = await db.collection('weddings')
+      .where('ownerId', '==', user.uid).get();
+    const weddings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    updateWeddingSelect(weddings);
+    // Auto-load if only one
+    if (weddings.length === 1) onWeddingSelect(weddings[0].id);
+  } catch(e) { console.error(e); }
+}
+
+function updateWeddingSelect(weddings) {
+  const sel = document.getElementById('wedding-select');
+  sel.innerHTML = '<option value="">— Select a Wedding —</option>';
+  weddings.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id; opt.textContent = w.coupleNames || w.id;
+    sel.appendChild(opt);
+  });
+  if (weddingId) sel.value = weddingId;
+}
+
+async function onWeddingSelect(id) {
+  if (!id) return;
+  weddingId = id;
+  try {
+    const snap = await db.collection('weddings').doc(id).get();
+    if (!snap.exists) { toast('Wedding not found', 'err'); return; }
+    const data = snap.data();
+    blocks = (data.blocks || []).map(b => ({ ...b, _id: b._id || `b${++blockUid}` }));
+    theme = { ...DEFAULT_THEME, ...(data.theme || {}) };
+    applyThemeToPage();
+    renderCanvas();
+    toast('Loaded ' + (data.coupleNames || id), 'ok');
+  } catch(e) { toast('Error loading wedding', 'err'); console.error(e); }
+}
+
+async function createWedding() {
+  const id      = document.getElementById('new-id').value.trim().replace(/\s+/g,'+');
+  const title   = document.getElementById('new-title').value.trim();
+  const date    = document.getElementById('new-date').value;
+  if (!id) { toast('Please enter couple names', 'err'); return; }
+  if (!user) { toast('Please sign in', 'err'); return; }
+
+  try {
+    const data = {
+      ownerId: user.uid,
+      coupleNames: title || id,
+      date,
+      theme: DEFAULT_THEME,
+      blocks: [
+        { ...createBlock('hero'), title: title || id, date }
+      ],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await db.collection('weddings').doc(id).set(data);
+    closeModal('new-wedding-modal');
+    toast('Wedding page created!', 'ok');
+    await loadUserWeddings();
+    onWeddingSelect(id);
+  } catch(e) { toast('Error creating wedding: ' + e.message, 'err'); console.error(e); }
+}
+
+async function saveWedding() {
+  if (!weddingId) { toast('Select or create a wedding first', 'err'); return; }
+  if (!user) { toast('Please sign in', 'err'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '⏳ Saving…'; btn.disabled = true;
+  try {
+    const cleanBlocks = blocks.map(b => {
+      const { _id, ...rest } = b; return { ...rest, _id };
+    });
+    await db.collection('weddings').doc(weddingId).set({
+      blocks: cleanBlocks,
+      theme,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    toast('Saved successfully!', 'ok');
+    const ind = document.getElementById('save-indicator');
+    ind.classList.add('show');
+    setTimeout(() => ind.classList.remove('show'), 3000);
+  } catch(e) { toast('Save failed: ' + e.message, 'err'); }
+  btn.textContent = '💾 Save'; btn.disabled = false;
+}
+
+function previewPage() {
+  if (!weddingId) { toast('Save your page first, then preview', 'err'); return; }
+  window.open(`index.html?weddingId=${encodeURIComponent(weddingId)}`, '_blank');
+}
+
+// ═══════════════════════════════════════════════
+//  BLOCK DEFAULTS
+// ═══════════════════════════════════════════════
+function createBlock(type) {
+  const defaults = {
+    hero:      { title: 'Sarah & James', subtitle: 'Together Forever', date: '', venue: '', bgImage: '', overlayOpacity: 0.45 },
+    text:      { heading: 'Our Story', content: 'Write your story here…\n\nAdd a second paragraph with more details.', align: 'center', size: 'medium' },
+    image:     { src: '', caption: '', width: 'full' },
+    carousel:  { images: [], autoplay: true, interval: 4000, height: 520 },
+    countdown: { targetDate: '', label: 'Until the Big Day' },
+    details:   { heading: 'Wedding Details', items: [
+      { icon: '📅', title: 'Date', content: 'Saturday, June 14, 2025' },
+      { icon: '📍', title: 'Venue', content: 'The Grand Ballroom\n123 Rose Lane' },
+      { icon: '👗', title: 'Dress Code', content: 'Black Tie' }
+    ]},
+    rsvp:      { title: 'RSVP', subtitle: 'Please reply by May 1, 2025', deadline: '' },
+    gallery:   { images: [], columns: 3 },
+    divider:   { style: 'floral', color: '#c9a96e' },
+    quote:     { text: 'To love and be loved is to feel the sun from both sides.', author: 'David Viscott' }
+  };
+  return { type, _id: `b${++blockUid}`, ...(defaults[type] || {}) };
+}
+
+// ═══════════════════════════════════════════════
+//  BLOCK CRUD
+// ═══════════════════════════════════════════════
+function addBlock(type, index) {
+  const b = createBlock(type);
+  if (index !== undefined) blocks.splice(index, 0, b);
+  else blocks.push(b);
+  renderCanvas();
+  selectBlock(b._id);
+  return b;
+}
+
+function removeBlock(id) {
+  blocks = blocks.filter(b => b._id !== id);
+  if (selectedId === id) selectedId = null;
+  renderCanvas();
+  renderProperties();
+}
+
+function duplicateBlock(id) {
+  const idx = blocks.findIndex(b => b._id === id);
+  if (idx === -1) return;
+  const copy = JSON.parse(JSON.stringify(blocks[idx]));
+  copy._id = `b${++blockUid}`;
+  blocks.splice(idx + 1, 0, copy);
+  renderCanvas();
+  selectBlock(copy._id);
+}
+
+function updateBlock(id, key, val) {
+  const b = blocks.find(b => b._id === id);
+  if (!b) return;
+  // Support dot notation for nested keys
+  if (key.includes('.')) {
+    const parts = key.split('.');
+    let obj = b;
+    for (let i = 0; i < parts.length - 1; i++) { obj = obj[parts[i]]; }
+    obj[parts[parts.length - 1]] = val;
+  } else {
+    b[key] = val;
+  }
+  refreshBlockPreview(id);
+}
+
+function moveBlock(oldIndex, newIndex) {
+  const b = blocks.splice(oldIndex, 1)[0];
+  blocks.splice(newIndex, 0, b);
+}
+
+// ═══════════════════════════════════════════════
+//  CANVAS RENDERING
+// ═══════════════════════════════════════════════
+function renderCanvas() {
+  if (canvasSortable) { canvasSortable.destroy(); canvasSortable = null; }
+  
+  const inner = document.getElementById('canvas-inner');
+  const empty = document.getElementById('canvas-empty');
+  
+  if (!blocks.length) {
+    empty.style.display = '';
+    inner.innerHTML = '';
+    initSortables();
+    return;
+  }
+  empty.style.display = 'none';
+  inner.innerHTML = '';
+  blocks.forEach((b, i) => { inner.appendChild(makeBlockEl(b, i)); });
+  initSortables();
+}
+
+function makeBlockEl(b, i) {
+  const div = document.createElement('div');
+  div.className = `canvas-block${b._id === selectedId ? ' selected' : ''}`;
+  div.dataset.id = b._id;
+  div.dataset.type = b.type;
+
+  const blockNames = { hero:'Hero', text:'Text', image:'Image', carousel:'Carousel',
+    countdown:'Countdown', details:'Details', rsvp:'RSVP', gallery:'Gallery',
+    divider:'Divider', quote:'Quote' };
+
+  div.innerHTML = `
+    <div class="block-toolbar">
+      <span class="block-drag" title="Drag to reorder">⠿</span>
+      <span class="bt-name">${blockNames[b.type]||b.type}</span>
+      <div class="bt-actions">
+        <button class="bt-btn" onclick="duplicateBlock('${b._id}')" title="Duplicate">⧉</button>
+        <button class="bt-btn del" onclick="removeBlock('${b._id}')" title="Delete">✕</button>
+      </div>
+    </div>
+    <div class="block-preview-wrap" onclick="selectBlock('${b._id}')" style="cursor:pointer">
+      ${getBlockPreviewHTML(b)}
+    </div>`;
+  return div;
+}
+
+function refreshBlockPreview(id) {
+  const el = document.querySelector(`.canvas-block[data-id="${id}"] .block-preview-wrap`);
+  if (el) {
+    const b = blocks.find(b => b._id === id);
+    if (b) el.innerHTML = getBlockPreviewHTML(b);
+  }
+}
+
+function selectBlock(id) {
+  selectedId = id;
+  document.querySelectorAll('.canvas-block').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+  renderProperties();
+  // Scroll to block
+  const el = document.querySelector(`.canvas-block[data-id="${id}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ═══════════════════════════════════════════════
+//  BLOCK PREVIEW HTML (for canvas)
+// ═══════════════════════════════════════════════
+function getBlockPreviewHTML(b) {
+  const t = b.type;
+  const trunc = (s, n) => (s||'').length > n ? s.slice(0,n)+'…' : (s||'');
+
+  if (t === 'hero') {
+    const bg = b.bgImage ? `background-image:url('${driveUrl(b.bgImage)}');background-size:cover;background-position:center` : '';
+    const opa = b.overlayOpacity ?? .45;
+    return `<div class="preview-hero">
+      ${b.bgImage ? `<div class="preview-hero-bg" style="${bg}"></div>` : ''}
+      <div class="preview-hero-overlay" style="background:rgba(0,0,0,${opa})"></div>
+      <div class="preview-hero-content">
+        <div style="font-size:.65rem;letter-spacing:8px;opacity:.4;margin-bottom:8px">✦ ✦ ✦</div>
+        <h1>${trunc(b.title||'Couple Names',30)}</h1>
+        ${b.subtitle?`<p class="ph-sub">${trunc(b.subtitle,40)}</p>`:''}
+        ${b.date?`<p class="ph-date">${b.date}</p>`:''}
+        ${b.venue?`<p class="ph-venue">${trunc(b.venue,30)}</p>`:''}
+      </div>
+    </div>`;
+  }
+  if (t === 'text') {
+    return `<div class="preview-text" style="text-align:${b.align||'left'}">
+      ${b.heading?`<h2>${trunc(b.heading,40)}</h2>`:''}
+      <p>${trunc(b.content||'',200).replace(/\n/g,'<br>')}</p>
+    </div>`;
+  }
+  if (t === 'image') {
+    return `<div class="preview-image">
+      ${b.src ? `<img src="${driveUrl(b.src)}" alt="">` 
+               : `<div class="pi-ph">🖼 Paste a Google Drive image URL in properties</div>`}
+      ${b.caption?`<figcaption style="text-align:center;font-size:.75rem;color:#aaa;padding:6px;font-style:italic">${trunc(b.caption,60)}</figcaption>`:''}
+    </div>`;
+  }
+  if (t === 'carousel') {
+    const imgs = b.images||[];
+    return `<div class="preview-carousel">
+      ${imgs.length ? imgs.slice(0,3).map(img=>`<img src="${driveUrl(img.src||img)}" alt="">`).join('') 
+                    : `<span class="car-ph">🎠 ${imgs.length} slides — add images in properties</span>`}
+    </div>`;
+  }
+  if (t === 'countdown') {
+    return `<div class="preview-countdown">
+      <div class="pcd-label">${trunc(b.label||'Until the Big Day',30)}</div>
+      <div class="pcd-units">
+        ${['DD','HH','MM','SS'].map((u,i)=>`<div><span class="pcd-n">${u}</span><span class="pcd-l">${['Days','Hours','Mins','Secs'][i]}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }
+  if (t === 'details') {
+    const items = (b.items||[]).slice(0,3);
+    return `<div class="preview-details">
+      ${b.heading?`<div style="text-align:center;font-family:'Playfair Display';font-size:.9rem;color:#2d4a3e;margin-bottom:12px">${trunc(b.heading,30)}</div>`:''}
+      <div class="pd-cards">
+        ${items.map(it=>`<div class="pd-card">
+          <div class="pd-ico">${it.icon||'📅'}</div>
+          <div class="pd-t">${trunc(it.title||'',16)}</div>
+          <div class="pd-c">${trunc(it.content||'',24)}</div>
+        </div>`).join('')}
+        ${!items.length?'<div style="flex:1;text-align:center;color:#ccc;font-size:.8rem">No items yet</div>':''}
+      </div>
+    </div>`;
+  }
+  if (t === 'rsvp') {
+    return `<div class="preview-rsvp">
+      <h3>${trunc(b.title||'RSVP',20)}</h3>
+      ${['Full Name','Email Address','Attending'].map(p=>`<div class="pr-field">${p}</div>`).join('')}
+    </div>`;
+  }
+  if (t === 'gallery') {
+    const imgs = b.images||[];
+    const cols = b.columns||3;
+    return `<div class="preview-gallery">
+      <div class="pg-grid" style="grid-template-columns:repeat(${cols},1fr)">
+        ${imgs.length ? imgs.slice(0,6).map(img=>`<div class="pg-cell"><img src="${driveUrl(img.src||img)}" alt=""></div>`).join('')
+                      : `<div style="grid-column:1/-1;text-align:center;padding:20px;color:#ccc;font-size:.8rem">No images yet — add in properties</div>`}
+      </div>
+    </div>`;
+  }
+  if (t === 'divider') {
+    const s = b.style||'floral'; const c = b.color||'#c9a96e';
+    const center = s==='line' ? '' : s==='floral' ? `<div class="pdiv-center" style="color:${c}">✿ ✾ ✿</div>` : s==='dots' ? `<div class="pdiv-center" style="color:${c}">···</div>` : `<div class="pdiv-center" style="color:${c}">〰</div>`;
+    return `<div class="preview-divider"><div class="pdiv-line" style="background:${c};opacity:.4"></div>${center}<div class="pdiv-line" style="background:${c};opacity:.4"></div></div>`;
+  }
+  if (t === 'quote') {
+    return `<div class="preview-quote">
+      <p>"${trunc(b.text||'',120)}"</p>
+      ${b.author?`<cite>— ${trunc(b.author,30)}</cite>`:''}
+    </div>`;
+  }
+  return `<div style="padding:20px;color:#aaa;text-align:center;font-size:.8rem">Unknown block type: ${b.type}</div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  PROPERTIES PANEL
+// ═══════════════════════════════════════════════
+const blockNames = { hero:'Hero', text:'Text', image:'Image', carousel:'Carousel',
+  countdown:'Countdown Timer', details:'Details Cards', rsvp:'RSVP Form',
+  gallery:'Photo Gallery', divider:'Divider', quote:'Quote' };
+
+function renderProperties() {
+  const body = document.getElementById('sr-body');
+  const typeEl = document.getElementById('sr-block-type');
+  if (!selectedId) {
+    typeEl.textContent = 'No block selected';
+    body.innerHTML = `<div class="sr-empty"><div class="se-icon">✦</div><p>Click any block on the canvas to edit its properties here.</p></div>`;
+    return;
+  }
+  const b = blocks.find(b => b._id === selectedId);
+  if (!b) return;
+  typeEl.textContent = blockNames[b.type] || b.type;
+  body.innerHTML = getPropsHTML(b);
+  bindProps(b);
+}
+
+function getPropsHTML(b) {
+  const f = (key, label, val, type='text', extra='') =>
+    `<div class="prop-group"><label class="prop-label">${label}</label>
+     <input class="prop-input" type="${type}" data-key="${key}" value="${hval(val)}" ${extra}></div>`;
+  const ta = (key, label, val) =>
+    `<div class="prop-group"><label class="prop-label">${label}</label>
+     <textarea class="prop-textarea" data-key="${key}">${hval(val)}</textarea></div>`;
+  const sel = (key, label, val, opts) =>
+    `<div class="prop-group"><label class="prop-label">${label}</label>
+     <select class="prop-select" data-key="${key}">${opts.map(o=>`<option value="${o.v}"${val===o.v?' selected':''}>${o.l}</option>`).join('')}</select></div>`;
+  const rng = (key, label, val, min, max, step=0.05) =>
+    `<div class="prop-group"><label class="prop-label">${label}</label>
+     <div class="prop-range"><input type="range" data-key="${key}" value="${val}" min="${min}" max="${max}" step="${step}">
+     <span class="rv" id="rv-${key}">${Number(val).toFixed(2)}</span></div></div>`;
+  const toggle = (key, label, val) =>
+    `<div class="prop-group"><label class="prop-toggle"><input type="checkbox" data-key="${key}" ${val?' checked':''}><label>${label}</label></label></div>`;
+  const colorRow = (key, label, val) =>
+    `<div class="prop-group"><label class="prop-label">${label}</label>
+     <div class="prop-color"><input type="color" data-key="${key}" value="${val||'#000000'}">
+     <input type="text" class="prop-input" data-key-text="${key}" value="${val||''}"></div></div>`;
+  const driveNote = `<div style="font-size:.72rem;color:#aaa;margin-top:-12px;margin-bottom:12px;line-height:1.5">
+    Paste a <strong>Google Drive share link</strong>.<br>Example: https://drive.google.com/file/d/…/view</div>`;
+
+  if (b.type === 'hero') return `
+    ${f('title','Couple Names',b.title)}
+    ${f('subtitle','Subtitle (optional)',b.subtitle)}
+    ${f('date','Wedding Date',b.date)}
+    ${f('venue','Venue (optional)',b.venue)}
+    ${f('bgImage','Background Image URL',b.bgImage)}
+    ${driveNote}
+    ${rng('overlayOpacity','Overlay Darkness',b.overlayOpacity??0.45,0,0.9)}
+    <button class="prop-btn secondary" onclick="openImgHelper('bgImage')">📎 Google Drive Helper</button>`;
+
+  if (b.type === 'text') return `
+    ${f('heading','Heading (optional)',b.heading)}
+    ${ta('content','Content / Paragraph',b.content)}
+    <div class="prop-group"><label class="prop-label">Alignment</label>
+    <div class="align-btns">
+      ${['left','center','right'].map(a=>`<button class="align-btn${b.align===a?' on':''}" onclick="setProp('align','${a}')" title="${a}">
+        ${{left:'⬅',center:'⬛',right:'➡'}[a]}</button>`).join('')}
+    </div></div>
+    ${sel('size','Text Size',b.size,[{v:'small',l:'Small'},{v:'medium',l:'Medium'},{v:'large',l:'Large'}])}`;
+
+  if (b.type === 'image') return `
+    ${f('src','Image URL (Google Drive)',b.src)}
+    ${driveNote}
+    ${f('caption','Caption (optional)',b.caption)}
+    ${sel('width','Width',b.width,[{v:'full',l:'Full width'},{v:'medium',l:'Medium'},{v:'small',l:'Small / centered'}])}`;
+
+  if (b.type === 'carousel') return `
+    ${f('height','Slide Height (px)',b.height,'number')}
+    ${toggle('autoplay','Auto-play',b.autoplay)}
+    ${f('interval','Auto-play Interval (ms)',b.interval,'number')}
+    <hr class="prop-divider">
+    <div class="prop-group"><label class="prop-label">Images (${(b.images||[]).length})</label></div>
+    ${(b.images||[]).map((img,i)=>`
+    <div class="array-item">
+      <div class="array-item-header">
+        <span class="array-item-num">${i+1}</span>
+        <button class="array-item-del" onclick="removeArrayItem('images',${i})">✕</button>
+      </div>
+      <input class="prop-input" type="text" placeholder="Image URL (Google Drive)" value="${img.src||img||''}"
+        onchange="setArrayItemProp('images',${i},'src',this.value)" style="margin-bottom:6px">
+      <input class="prop-input" type="text" placeholder="Caption (optional)" value="${img.caption||''}"
+        onchange="setArrayItemProp('images',${i},'caption',this.value)">
+    </div>`).join('')}
+    <button class="prop-btn" onclick="addArrayItem('images',{src:'',caption:''})">＋ Add Image</button>`;
+
+  if (b.type === 'countdown') return `
+    ${f('label','Label',b.label)}
+    ${f('targetDate','Target Date & Time',b.targetDate,'datetime-local')}`;
+
+  if (b.type === 'details') return `
+    ${f('heading','Section Heading',b.heading)}
+    <hr class="prop-divider">
+    <div class="prop-group"><label class="prop-label">Detail Cards</label></div>
+    ${(b.items||[]).map((it,i)=>`
+    <div class="array-item">
+      <div class="array-item-header">
+        <span class="array-item-num">${i+1}</span>
+        <button class="array-item-del" onclick="removeArrayItem('items',${i})">✕</button>
+      </div>
+      <input class="prop-input" type="text" placeholder="Icon (emoji)" value="${it.icon||''}"
+        onchange="setArrayItemProp('items',${i},'icon',this.value)" style="margin-bottom:6px;max-width:80px">
+      <input class="prop-input" type="text" placeholder="Title (e.g. Date)" value="${it.title||''}"
+        onchange="setArrayItemProp('items',${i},'title',this.value)" style="margin-bottom:6px">
+      <textarea class="prop-textarea" placeholder="Content" style="min-height:60px"
+        onchange="setArrayItemProp('items',${i},'content',this.value)">${it.content||''}</textarea>
+    </div>`).join('')}
+    <button class="prop-btn" onclick="addArrayItem('items',{icon:'📅',title:'',content:''})">＋ Add Card</button>`;
+
+  if (b.type === 'rsvp') return `
+    ${f('title','Title',b.title)}
+    ${f('subtitle','Subtitle / Deadline info',b.subtitle)}
+    ${f('deadline','RSVP Deadline',b.deadline,'date')}`;
+
+  if (b.type === 'gallery') return `
+    ${sel('columns','Columns',b.columns,[{v:2,l:'2 Columns'},{v:3,l:'3 Columns'},{v:4,l:'4 Columns'}])}
+    <hr class="prop-divider">
+    <div class="prop-group"><label class="prop-label">Images (${(b.images||[]).length})</label></div>
+    ${(b.images||[]).map((img,i)=>`
+    <div class="array-item">
+      <div class="array-item-header">
+        <span class="array-item-num">${i+1}</span>
+        <button class="array-item-del" onclick="removeArrayItem('images',${i})">✕</button>
+      </div>
+      <input class="prop-input" type="text" placeholder="Image URL (Google Drive)" value="${img.src||img||''}"
+        onchange="setArrayItemProp('images',${i},'src',this.value)">
+    </div>`).join('')}
+    <button class="prop-btn" onclick="addArrayItem('images',{src:'',caption:''})">＋ Add Image</button>`;
+
+  if (b.type === 'divider') return `
+    ${sel('style','Style',b.style,[
+      {v:'floral',l:'Floral ✿ ✾ ✿'},{v:'line',l:'Simple Line'},
+      {v:'dots',l:'Dots ···'},{v:'wave',l:'Wave 〰'}
+    ])}
+    ${colorRow('color','Colour',b.color||'#c9a96e')}`;
+
+  if (b.type === 'quote') return `
+    ${ta('text','Quote Text',b.text)}
+    ${f('author','Author',b.author)}`;
+
+  return `<p style="color:#aaa;font-size:.8rem;padding:16px">No properties for this block type.</p>`;
+}
+
+function bindProps(b) {
+  const body = document.getElementById('sr-body');
+  body.querySelectorAll('[data-key]').forEach(el => {
+    const key = el.dataset.key;
+    const ev = el.type === 'checkbox' ? 'change' : (el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'number') ? 'input' : 'change';
+    el.addEventListener(ev, () => {
+      const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+      updateBlock(b._id, key, v);
+      // Update range display
+      if (el.type === 'range') {
+        const rv = document.getElementById(`rv-${key}`);
+        if (rv) rv.textContent = Number(el.value).toFixed(2);
+      }
+    });
+  });
+  // Sync colour text <-> colour picker
+  body.querySelectorAll('[data-key-text]').forEach(textEl => {
+    const key = textEl.dataset.keyText;
+    const picker = body.querySelector(`[data-key="${key}"][type=color]`);
+    if (picker) {
+      textEl.addEventListener('input', () => { picker.value = textEl.value; updateBlock(b._id, key, textEl.value); });
+      picker.addEventListener('input', () => { textEl.value = picker.value; updateBlock(b._id, key, picker.value); });
+    }
+  });
+}
+
+function setProp(key, val) {
+  if (!selectedId) return;
+  updateBlock(selectedId, key, val);
+  renderProperties();
+}
+function addArrayItem(key, template) {
+  if (!selectedId) return;
+  const b = blocks.find(b => b._id === selectedId);
+  if (!b) return;
+  if (!b[key]) b[key] = [];
+  b[key].push({ ...template });
+  refreshBlockPreview(selectedId);
+  renderProperties();
+}
+function removeArrayItem(key, idx) {
+  if (!selectedId) return;
+  const b = blocks.find(b => b._id === selectedId);
+  if (!b || !b[key]) return;
+  b[key].splice(idx, 1);
+  refreshBlockPreview(selectedId);
+  renderProperties();
+}
+function setArrayItemProp(key, idx, prop, val) {
+  if (!selectedId) return;
+  const b = blocks.find(b => b._id === selectedId);
+  if (!b || !b[key] || !b[key][idx]) return;
+  if (typeof b[key][idx] === 'string') b[key][idx] = { src: b[key][idx] };
+  b[key][idx][prop] = val;
+  refreshBlockPreview(selectedId);
+}
+function openImgHelper(key) {
+  const url = prompt('Paste your Google Drive share link here:\n\nhttps://drive.google.com/file/d/YOUR_FILE_ID/view?usp=sharing');
+  if (url) { setProp(key, url); }
+}
+function hval(v) { return String(v||'').replace(/"/g,'&quot;'); }
+
+// ═══════════════════════════════════════════════
+//  SORTABLE
+// ═══════════════════════════════════════════════
+function initSortables() {
+  const palette = document.getElementById('palette');
+  const inner   = document.getElementById('canvas-inner');
+
+  if (!paletteSortable) {
+    paletteSortable = Sortable.create(palette, {
+      group: { name: 'blocks', pull: 'clone', put: false },
+      sort: false, animation: 150,
+      ghostClass: 'sortable-ghost',
+    });
+  }
+
+  canvasSortable = Sortable.create(inner, {
+    group: { name: 'blocks', pull: true, put: true },
+    animation: 200,
+    handle: '.block-drag',
+    ghostClass: 'sortable-ghost',
+    dragClass: 'sortable-drag',
+    onAdd(evt) {
+      const type = evt.item.dataset.type;
+      const idx  = evt.newIndex;
+      evt.item.remove();
+      if (!weddingId) { toast('Select or create a wedding first', 'err'); return; }
+      const b = createBlock(type);
+      blocks.splice(idx, 0, b);
+      setTimeout(() => { renderCanvas(); selectBlock(b._id); }, 0);
+    },
+    onUpdate(evt) {
+      moveBlock(evt.oldIndex, evt.newIndex);
+      // Don't re-render; just keep DOM order and update internal array
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  THEME
+// ═══════════════════════════════════════════════
+const THEME_PRESETS = [
+  { name:'Garden', primary:'#8fba7a', secondary:'#2e5e3e', background:'#f5fbf2', text:'#2a2a2a', accent:'#d4e8c8' },
+  { name:'Gold',   primary:'#c9a96e', secondary:'#2d4a3e', background:'#fffdf8', text:'#2c2c2c', accent:'#f0e6d3' },
+  { name:'Blush',  primary:'#e8a0b0', secondary:'#5a3040', background:'#fff8f9', text:'#3a2a30', accent:'#fce0e8' },
+  { name:'Navy',   primary:'#c0a870', secondary:'#1a2a4a', background:'#f8f9fc', text:'#1a2030', accent:'#dde4f0' },
+  { name:'Rust',   primary:'#d4846a', secondary:'#4a2820', background:'#fffaf8', text:'#3a2820', accent:'#f5ddd0' },
+  { name:'Slate',  primary:'#8aabb8', secondary:'#2a3e4a', background:'#f5f8fc', text:'#2a3038', accent:'#d0e0e8' },
+];
+const THEME_FIELDS = [
+  { key:'primary',    label:'Accent / Primary' },
+  { key:'secondary',  label:'Dark / Secondary' },
+  { key:'background', label:'Page Background' },
+  { key:'text',       label:'Body Text' },
+  { key:'accent',     label:'Light Accent' },
+];
+
+function buildThemeModal() {
+  const colorsEl = document.getElementById('theme-colors');
+  colorsEl.innerHTML = THEME_FIELDS.map(f => `
+    <div class="theme-swatch">
+      <input type="color" id="tc-${f.key}" value="${theme[f.key]||'#000000'}" onchange="onThemeColor('${f.key}',this.value)">
+      <div class="theme-swatch-info">
+        <div class="ts-label">${f.label}</div>
+        <div class="ts-val" id="tv-${f.key}">${theme[f.key]||''}</div>
+      </div>
+    </div>`).join('');
+
+  // Fonts
+  const fh = document.getElementById('theme-font-heading');
+  const fb = document.getElementById('theme-font-body');
+  [fh, fb].forEach(el => {
+    el.innerHTML = FONT_OPTIONS.map(f => `<option value="${f}">${f}</option>`).join('');
+  });
+  fh.value = theme.fontHeading || 'Playfair Display';
+  fb.value = theme.fontBody    || 'Lato';
+
+  // Presets
+  const presetsEl = document.getElementById('theme-presets');
+  presetsEl.innerHTML = THEME_PRESETS.map(p => `
+    <div onclick="applyPreset(${JSON.stringify(p).replace(/"/g,"'")})"
+      style="cursor:pointer;text-align:center;border-radius:8px;overflow:hidden;border:2px solid #eee;transition:border-color .2s;width:70px"
+      title="${p.name}">
+      <div style="height:36px;background:${p.secondary}"></div>
+      <div style="height:12px;background:${p.primary}"></div>
+      <div style="padding:5px;font-size:.68rem;color:#666;background:#fff">${p.name}</div>
+    </div>`).join('');
+}
+
+function onThemeColor(key, val) {
+  theme[key] = val;
+  document.getElementById(`tv-${key}`).textContent = val;
+  applyThemeToPage();
+}
+function onThemeFont(key, val) { theme[key] = val; applyThemeToPage(); }
+function applyPreset(p) {
+  theme = { ...theme, ...p };
+  applyThemeToPage();
+  buildThemeModal();
+  toast(`Applied "${p.name}" palette`, 'ok');
+}
+function resetTheme() { theme = { ...DEFAULT_THEME }; applyThemeToPage(); buildThemeModal(); }
+function applyThemeToPage() {
+  const r = document.documentElement.style;
+  r.setProperty('--primary',    theme.primary    || '#c9a96e');
+  r.setProperty('--secondary',  theme.secondary  || '#2d4a3e');
+  r.setProperty('--bg',         theme.background || '#fffdf8');
+  r.setProperty('--text',       theme.text       || '#2c2c2c');
+  r.setProperty('--accent',     theme.accent     || '#f0e6d3');
+}
+
+// ═══════════════════════════════════════════════
+//  MODALS
+// ═══════════════════════════════════════════════
+function openModal(id) {
+  if (id === 'theme-modal') buildThemeModal();
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+function updateNewIdPreview() {
+  const v = document.getElementById('new-id').value.trim().replace(/\s+/g,'+');
+  document.getElementById('new-id-preview').textContent = `?weddingId=${v}`;
+}
+
+// ═══════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════
+let toastTimer;
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ═══════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveWedding(); }
+  if (e.key === 'Escape') { selectedId = null; renderProperties(); }
+  if (e.key === 'Delete' && selectedId && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    removeBlock(selectedId);
+  }
+});
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay && overlay.id !== 'signin-modal') closeModal(overlay.id);
+  });
+});
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+(function init() {
+  initSortables();
+  applyThemeToPage();
+  renderCanvas();
+})();
+</script>
+</body>
+</html>

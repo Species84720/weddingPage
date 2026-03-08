@@ -1,365 +1,269 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Our Wedding Journey</title>
-    <style>
-        body {
-            font-family: 'Georgia', serif;
-            margin: 0;
-            padding: 0;
-            background-color: #faf9f6; /* Soft off-white background */
-            color: #333;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Wedding</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Lato:wght@300;400;700&family=Raleway:wght@300;400&family=Josefin+Sans:wght@300;400&family=Cinzel:wght@400;700&family=Great+Vibes&family=Alex+Brush&family=Sacramento&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --primary:#c9a96e; --secondary:#2d4a3e; --bg:#fffdf8;
+      --text:#2c2c2c; --accent:#f0e6d3;
+      --fh:'Playfair Display',serif; --fb:'Lato',sans-serif;
+    }
+    html { scroll-behavior:smooth; }
+    body { font-family:var(--fb); background:var(--bg); color:var(--text); overflow-x:hidden; }
 
-        /* Header Section */
-        header {
-            position: relative; /* Allow absolute positioning inside the header */
-            text-align: center;
-            padding: 0px 0px 20px;
-            background: #fff; /* Clean white header */
-            border-bottom: 2px solid #e8d3b9; /* Champagne accent */
-        }
+    /* ── Loading ── */
+    #loading { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column;
+      align-items:center; justify-content:center; z-index:9999; transition:opacity .6s ease; }
+    #loading.out { opacity:0; pointer-events:none; }
+    .ring { width:48px; height:48px; border:2px solid var(--accent);
+      border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; }
+    .ring-label { font-family:var(--fh); font-style:italic; color:var(--primary);
+      margin-top:16px; font-size:14px; opacity:.8; }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
-        header h1 {
-            margin: 0;
-            font-size: 3em;
-            color: #a67654; /* Gold tone for elegance */
-            font-family: 'Times New Roman', serif;
-            font-weight: normal;
-        }
+    /* ── Error ── */
+    #error-state { display:none; min-height:100vh; align-items:center; justify-content:center;
+      flex-direction:column; text-align:center; padding:40px; }
+    #error-state.show { display:flex; }
+    #error-state h2 { font-family:var(--fh); font-size:2.5rem; color:var(--secondary);
+      margin-bottom:16px; font-weight:400; }
+    #error-state p { color:#999; max-width:400px; line-height:1.8; }
 
-        header p {
-            margin-top: 10px;
-            font-size: 1.3em;
-            color: #777;
-        }
+    /* ── Page transition ── */
+    #page { opacity:0; transition:opacity .8s ease .2s; }
+    #page.in { opacity:1; }
 
-        /* RSVP Button in Header */
-        .rsvp-button {
-            /* position: absolute; */
-            top: 20px;
-            right: 20px;
-            padding: 15px 40px;
-            font-size: 1.3em;
-            text-decoration: none;
-            background-color: #d82727;
-            color: white;
-            border-radius: 5px;
-            transition: background-color 0.3s ease;
-        }
+    /* ═══ HERO ═══ */
+    .b-hero { position:relative; min-height:100vh; display:flex; align-items:center;
+      justify-content:center; text-align:center; background:var(--secondary); overflow:hidden; }
+    .b-hero__bg { position:absolute; inset:0; background-size:cover; background-position:center;
+      transform:scale(1.05); transition:transform 8s ease; }
+    .b-hero:hover .b-hero__bg { transform:scale(1); }
+    .b-hero__overlay { position:absolute; inset:0; }
+    .b-hero__content { position:relative; z-index:2; color:#fff; padding:60px 40px; max-width:900px; }
+    .b-hero__ornament { font-size:1.5rem; letter-spacing:16px; opacity:.5; margin-bottom:28px;
+      animation:fadeUp 1.2s both .1s; }
+    .b-hero h1 { font-family:var(--fh); font-size:clamp(2.4rem,6vw,5.5rem); font-weight:300;
+      letter-spacing:3px; line-height:1.15; animation:fadeUp 1.2s both .3s; }
+    .b-hero__sub { font-size:.85rem; letter-spacing:6px; text-transform:uppercase; opacity:.75;
+      margin-top:20px; animation:fadeUp 1.2s both .5s; }
+    .b-hero__date { font-family:var(--fh); font-style:italic; font-size:1.4rem;
+      color:var(--primary); margin-top:24px; animation:fadeUp 1.2s both .7s; }
+    .b-hero__venue { font-size:.8rem; letter-spacing:4px; text-transform:uppercase; opacity:.6;
+      margin-top:10px; animation:fadeUp 1.2s both .9s; }
+    .b-hero__scroll { position:absolute; bottom:40px; left:50%; transform:translateX(-50%);
+      display:flex; flex-direction:column; align-items:center; gap:8px; opacity:.5; }
+    .b-hero__scroll span { width:1px; height:50px; background:#fff;
+      animation:scrollPulse 2s ease-in-out infinite; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:none} }
+    @keyframes scrollPulse {
+      0%{transform:scaleY(0);transform-origin:top}
+      50%{transform:scaleY(1);transform-origin:top}
+      51%{transform:scaleY(1);transform-origin:bottom}
+      100%{transform:scaleY(0);transform-origin:bottom}
+    }
 
-        .rsvp-button:hover {
-            background-color: #8c3434;
-        }
+    /* ═══ TEXT ═══ */
+    .b-text { padding:80px 40px; max-width:780px; margin:0 auto; }
+    .b-text h2 { font-family:var(--fh); font-size:clamp(1.7rem,3vw,2.4rem); font-weight:400;
+      color:var(--secondary); margin-bottom:20px; line-height:1.3; }
+    .b-text p { line-height:2; color:#666; white-space:pre-wrap; }
 
-        /* Carousel Section */
-        .carousel {
-            position: relative;
-            overflow: hidden;
-            width: 100%;
-            padding: 40px 0;
-            background-color: #f7f3e9; /* Champagne background */
-            display: flex;
-            align-items: center;
-        }
+    /* ═══ IMAGE ═══ */
+    .b-image figure { line-height:0; }
+    .b-image img { width:100%; display:block; object-fit:cover; }
+    .b-image figcaption { font-style:italic; color:#aaa; text-align:center; padding:14px;
+      font-size:.88rem; line-height:1.5; }
+    .b-image.medium { padding:30px 60px; }
+    .b-image.small { padding:30px; max-width:600px; margin:0 auto; }
 
-        .carousel-track {
-            display: flex;
-            gap: 30px;
-            animation: none;
-        }
+    /* ═══ CAROUSEL — 3-D flip ═══ */
+    .b-carousel { position:relative; background:#111; user-select:none; }
+    /* Track height is set by JS; slides stack absolutely */
+    .carousel-track { position:relative; overflow:hidden; width:100%; }
+    .carousel-slide { position:absolute; inset:0; }
+    .carousel-slide img { width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
+    .carousel-slide figcaption { position:absolute; bottom:0; left:0; right:0;
+      background:linear-gradient(transparent,rgba(0,0,0,.6));
+      color:#fff; padding:20px 30px; font-style:italic; font-size:.9rem; z-index:1; pointer-events:none; }
+    .c-btn { position:absolute; top:50%; transform:translateY(-50%);
+      background:rgba(255,255,255,.15); backdrop-filter:blur(6px);
+      border:1px solid rgba(255,255,255,.3); color:#fff; width:52px; height:52px;
+      border-radius:50%; cursor:pointer; font-size:1.6rem;
+      display:flex; align-items:center; justify-content:center; transition:background .2s; z-index:3; }
+    .c-btn:hover { background:rgba(255,255,255,.35); }
+    .c-btn.prev { left:20px; } .c-btn.next { right:20px; }
+    .c-dots { position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+      display:flex; gap:8px; z-index:3; }
+    .c-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.4);
+      cursor:pointer; transition:all .25s; border:1px solid rgba(255,255,255,.3); }
+    .c-dot.on { background:#fff; transform:scale(1.25); }
 
-        .carousel-track .carousel-image-wrapper {
-            width: 300px;
-            height: 200px;
-            background-color: #f7f3e9; /* Champagne background color */
-            border: 1px solid #e8d3b9;
-            border-radius: 10px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
-            cursor: pointer;
-        }
+    /* ═══ COUNTDOWN ═══ */
+    .b-countdown { padding:100px 40px; text-align:center; background:var(--secondary); color:#fff; }
+    .b-countdown__label { font-family:var(--fh); font-style:italic; font-size:1rem;
+      letter-spacing:4px; opacity:.6; margin-bottom:50px; }
+    .cd-units { display:flex; justify-content:center; gap:clamp(24px,5vw,70px); flex-wrap:wrap; }
+    .cd-unit .n { font-family:var(--fh); font-size:clamp(3rem,7vw,5.5rem); font-weight:300;
+      color:var(--primary); display:block; line-height:1; }
+    .cd-unit .l { font-size:.72rem; letter-spacing:4px; text-transform:uppercase;
+      opacity:.5; margin-top:10px; display:block; }
 
-        .carousel-track img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
+    /* ═══ DETAILS ═══ */
+    .b-details { padding:90px 40px; background:var(--accent); }
+    /* Remove double padding when two details blocks are adjacent */
+    .b-details + .b-details { padding-top:0; }
+    /* Details — list style variant */
+    .b-details.dl-style { background:transparent; }
+    .b-details.dl-style .b-details__title { color:var(--secondary); }
+    .dl-list { max-width:620px; margin:0 auto; }
+    .dl-row { display:flex; align-items:flex-start; gap:22px; padding:18px 0;
+      border-bottom:1px solid rgba(0,0,0,.07); }
+    .dl-row:last-child { border-bottom:none; }
+    .dl-row-icon { font-size:1.6rem; flex:0 0 40px; text-align:center; margin-top:2px; }
+    .dl-row-body { flex:1; }
+    .dl-row-title { display:block; font-family:var(--fh); font-size:1rem; color:var(--secondary);
+      font-weight:400; margin-bottom:4px; }
+    .dl-row-text { display:block; font-size:.9rem; color:#777; line-height:1.7; white-space:pre-wrap; }
+    .b-details__title { font-family:var(--fh); text-align:center;
+      font-size:clamp(1.8rem,3vw,2.5rem); color:var(--secondary); font-weight:400; margin-bottom:56px; }
+    .detail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+      gap:24px; max-width:960px; margin:0 auto; }
+    .detail-card { background:#fff; padding:44px 30px; text-align:center;
+      box-shadow:0 8px 30px rgba(0,0,0,.06); transition:transform .3s; }
+    .detail-card:hover { transform:translateY(-4px); }
+    .detail-card .ico { font-size:2.2rem; margin-bottom:18px; }
+    .detail-card h4 { font-family:var(--fh); font-size:1.1rem; color:var(--secondary);
+      font-weight:400; margin-bottom:12px; }
+    .detail-card p { color:#888; line-height:1.8; font-size:.9rem; white-space:pre-wrap; }
 
-        .popup-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
+    /* ═══ RSVP ═══ */
+    .b-rsvp { padding:90px 40px; text-align:center; }
+    .b-rsvp h2 { font-family:var(--fh); font-size:clamp(2rem,4vw,3rem); font-weight:400;
+      color:var(--secondary); margin-bottom:10px; }
+    .b-rsvp__sub { color:#aaa; font-size:.9rem; letter-spacing:1px; margin-bottom:44px; }
+    .rsvp-form { max-width:480px; margin:0 auto; display:grid; gap:14px; }
+    .rsvp-form input, .rsvp-form select, .rsvp-form textarea {
+      padding:14px 18px; border:1px solid #e0e0e0; background:#fff;
+      font-family:var(--fb); font-size:.95rem; width:100%; outline:none;
+      transition:border-color .2s; color:var(--text); }
+    .rsvp-form input:focus, .rsvp-form select:focus { border-color:var(--primary); }
+    .rsvp-form textarea { resize:vertical; }
+    .rsvp-form button { padding:16px; background:var(--secondary); color:#fff; border:none;
+      font-family:var(--fh); font-size:1rem; letter-spacing:3px; cursor:pointer; transition:background .25s; }
+    .rsvp-form button:hover { background:var(--primary); }
+    /* Partner tick box — explicit flex so grid context can't break it */
+    .rsvp-partner-label { display:flex; flex-direction:row; align-items:center; gap:12px;
+      padding:14px 18px; border:1px solid #e0e0e0; background:#fff; cursor:pointer;
+      font-size:.95rem; color:var(--text); line-height:1.4; }
+    .rsvp-partner-chk { flex:0 0 18px; width:18px; height:18px; margin:0;
+      accent-color:var(--secondary); cursor:pointer; }
+    .rsvp-partner-label span { flex:1; }
+    .rsvp-ok { display:none; padding:20px; background:#f1f8e9; color:#558b2f;
+      font-style:italic; font-size:1.05rem; border-left:3px solid var(--primary); max-width:480px; margin:0 auto; }
+    /* RSVP link mode */
+    .rsvp-link-wrap { margin-top:16px; }
+    .rsvp-link-btn { display:inline-block; padding:18px 48px; background:var(--secondary);
+      color:#fff; text-decoration:none; font-family:var(--fh); font-size:1rem; letter-spacing:3px;
+      transition:background .25s; }
+    .rsvp-link-btn:hover { background:var(--primary); }
 
-        .popup-content {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            position: relative;
-        }
+    /* ═══ GALLERY ═══ */
+    .b-gallery { padding:30px 40px; }
+    .gallery-grid { display:grid; gap:6px; }
+    .gallery-grid.c2 { grid-template-columns:repeat(2,1fr); }
+    .gallery-grid.c3 { grid-template-columns:repeat(3,1fr); }
+    .gallery-grid.c4 { grid-template-columns:repeat(4,1fr); }
+    .gallery-grid img { width:100%; aspect-ratio:1; object-fit:cover; display:block;
+      cursor:pointer; transition:opacity .25s; }
+    .gallery-grid img:hover { opacity:.88; }
 
-        .popup-content img {
-            max-width: 80vw;
-            max-height: 80vh;
-            object-fit: contain;
-        }
+    /* ═══ DIVIDER ═══ */
+    .b-divider { padding:24px 60px; display:flex; align-items:center; justify-content:center; }
+    .div-line { flex:1; height:1px; background:var(--primary); opacity:.3; }
+    .div-center { padding:0 20px; font-size:1.1rem; letter-spacing:12px; }
 
-        .popup-close {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 30px;
-            color: #a67654;
-            cursor: pointer;
-        }
+    /* ═══ QUOTE ═══ */
+    .b-quote { padding:90px 60px; text-align:center; }
+    .b-quote blockquote { font-family:var(--fh); font-style:italic;
+      font-size:clamp(1.3rem,2.5vw,2rem); color:var(--secondary); max-width:680px;
+      margin:0 auto 24px; line-height:1.7; font-weight:300; position:relative; }
+    .b-quote blockquote::before { content:'\201C'; position:absolute; top:-20px; left:-30px;
+      font-size:6rem; line-height:1; color:var(--primary); opacity:.2; font-style:normal; }
+    .b-quote cite { font-style:normal; font-size:.78rem; letter-spacing:4px;
+      text-transform:uppercase; color:#bbb; }
 
-        .popup-navigation {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 30px;
-            color: #a67654;
-            cursor: pointer;
-        }
+    /* ═══ LIGHTBOX ═══ */
+    #lightbox { position:fixed; inset:0; background:rgba(0,0,0,.93); z-index:9000;
+      display:none; align-items:center; justify-content:center; gap:16px; padding:16px; }
+    #lightbox.on { display:flex; }
+    #lightbox-img-wrap { display:flex; flex-direction:column; align-items:center;
+      max-width:min(90vw,1000px); }
+    #lightbox img { max-width:100%; max-height:82vh; object-fit:contain; display:block;
+      border-radius:2px; transition:opacity .25s; }
+    #lightbox-caption { color:rgba(255,255,255,.6); font-style:italic; font-size:.85rem;
+      margin-top:12px; text-align:center; min-height:1.2em; }
+    #lightbox-close { position:absolute; top:18px; right:22px; color:#fff; font-size:1.8rem;
+      cursor:pointer; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25);
+      width:40px; height:40px; border-radius:50%; display:flex; align-items:center;
+      justify-content:center; transition:background .2s; z-index:1; }
+    #lightbox-close:hover { background:rgba(255,255,255,.25); }
+    #lightbox-prev, #lightbox-next { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+      color:#fff; width:52px; height:52px; border-radius:50%; cursor:pointer;
+      font-size:2rem; display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; transition:background .2s; }
+    #lightbox-prev:hover, #lightbox-next:hover { background:rgba(255,255,255,.28); }
+    @media(max-width:600px) {
+      #lightbox-prev, #lightbox-next { width:40px; height:40px; font-size:1.4rem; }
+    }
 
-        .popup-prev {
-            padding: 20% 40% 20% 0%;
-            left: 10px;
-        }
+    /* ═══ EDIT FAB ═══ */
+    .edit-fab { position:fixed; bottom:28px; right:28px; background:var(--secondary);
+      color:#fff; padding:12px 22px; text-decoration:none; font-size:.78rem;
+      letter-spacing:2.5px; text-transform:uppercase; box-shadow:0 6px 24px rgba(0,0,0,.25);
+      transition:all .25s; z-index:100; font-family:var(--fb); }
+    .edit-fab:hover { background:var(--primary); transform:translateY(-2px); }
 
-        .popup-next {
-            padding: 20% 0% 20% 40%;
-            right: 10px;
-        }
-
-        /* Event Details Section */
-        .details-section {
-            padding: 60px 20px;
-            text-align: center;
-            background-color: #fff;
-        }
-
-        .details-section h2 {
-            font-size: 2.5em;
-            color: #a67654;
-            margin-bottom: 20px;
-        }
-
-        .details-section p {
-            font-size: 1.2em;
-            color: #555;
-            max-width: 800px;
-            margin: 0 auto 40px;
-        }
-
-        .details-section ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            font-size: 1.2em;
-            color: #555;
-        }
-
-        .details-section ul li {
-            margin: 10px 0;
-        }
-
-        /* RSVP Section (No longer needed, but can be removed or kept for future) */
-        .rsvp-section {
-            text-align: center;
-            padding: 60px 20px;
-            background-color: #f7f3e9;
-            border-top: 2px solid #e8d3b9;
-        }
-
-        .rsvp-section h2 {
-            font-size: 2.5em;
-            color: #a67654;
-            margin-bottom: 20px;
-        }
-
-        /* Footer */
-        footer {
-            text-align: center;
-            padding: 20px;
-            background-color: #333;
-            color: #f8f8f8;
-        }
-
-        ul.horizontal {
-            list-style-type: none;
-            margin: 0px 0px 20px;
-            padding: 20px;
-            overflow: hidden;
-            background-color: #f7f3e9;
-            border-bottom: 2px solid #e8d3b9;
-        }
-    </style>
+    @media(max-width:768px) {
+      .b-text, .b-gallery, .b-image.medium, .b-image.small { padding:50px 22px; }
+      .b-details, .b-countdown, .b-rsvp, .b-quote { padding:60px 22px; }
+      .gallery-grid.c3, .gallery-grid.c4 { grid-template-columns:repeat(2,1fr); }
+    }
+  </style>
 </head>
 <body>
-    <header>
-        <ul class="horizontal">
-            <li class="rightli" style="float:right"><a href="https://forms.office.com/e/CFT9Y0pesr" target="_blank" class="rsvp-button">RSVP Here</a></li>
-        </ul>
-        <h1>Our Wedding Journey</h1>
-        <p>Celebrate love, laughter, and memories with us</p>
-    </header>
 
-    <section class="carousel">
-        <div class="carousel-track">
-            <div class="carousel-image-wrapper" data-index="0">
-                <img src="photo1.jpg" alt="Photo 1">
-            </div>
-            <div class="carousel-image-wrapper" data-index="1">
-                <img src="photo2.jpg" alt="Photo 2">
-            </div>
-            <div class="carousel-image-wrapper" data-index="2">
-                <img src="photo3.jpg" alt="Photo 3">
-            </div>
-            <div class="carousel-image-wrapper" data-index="3">
-                <img src="photo4.jpg" alt="Photo 4">
-            </div>
-            <div class="carousel-image-wrapper" data-index="4">
-                <img src="photo5.jpg" alt="Photo 5">
-            </div>
-            <div class="carousel-image-wrapper" data-index="5">
-                <img src="photo6.jpg" alt="Photo 6">
-            </div>
-            <div class="carousel-image-wrapper" data-index="6">
-                <img src="photo7.jpg" alt="Photo 7">
-            </div>
-            <div class="carousel-image-wrapper" data-index="7">
-                <img src="photo8.jpg" alt="Photo 8">
-            </div>
-            <div class="carousel-image-wrapper" data-index="8">
-                <img src="photo9.jpg" alt="Photo 9">
-            </div>
-            <div class="carousel-image-wrapper" data-index="9">
-                <img src="photo10.jpg" alt="Photo 10">
-            </div>
-        </div>
-    </section>
+<div id="loading">
+  <div class="ring"></div>
+  <p class="ring-label">Loading your celebration…</p>
+</div>
 
-    <section class="details-section">
-        <h2>The Details</h2>
-        <p>Join us as we tie the knot on our special day! We look forward to sharing this wonderful moment with you.</p>
-        <ul>
-            <li><strong>Date:</strong> Friday, April 25, 2025</li>
-            <li><strong>Time:</strong> Mass at 5:00 PM, Reception to follow</li>
-            <li><strong>Location:</strong> Parish Church, Birżebbuġa</li>
-            <li><strong>Reception:</strong> Villa Blanche, Hal Far</li>
-        </ul>
-    </section>
+<div id="error-state">
+  <h2>Page Not Found</h2>
+  <p>We couldn't find this wedding page.</p>
+</div>
 
-    <footer>
-        <p>&copy; 2025 Juan & Katrina. Made with love for our special day.</p>
-    </footer>
+<div id="page"></div>
+<a href="editor.html" class="edit-fab">✏ Edit</a>
 
-    <!-- Popup Modal -->
-    <div class="popup-modal" id="popup-modal">
-        <div class="popup-content">
-            <span class="popup-close" id="popup-close">&times;</span>
-            <img src="" alt="Large Image" id="popup-image">
-            <span class="popup-navigation popup-prev" id="popup-prev">&#10094;</span>
-            <span class="popup-navigation popup-next" id="popup-next">&#10095;</span>
-        </div>
-    </div>
+<div id="lightbox">
+  <button id="lightbox-close" onclick="closeLightbox()" title="Close">✕</button>
+  <button id="lightbox-prev" onclick="lightboxNav(-1)" title="Previous">&#8249;</button>
+  <div id="lightbox-img-wrap">
+    <img id="lightbox-img" src="" alt="">
+    <p id="lightbox-caption"></p>
+  </div>
+  <button id="lightbox-next" onclick="lightboxNav(1)" title="Next">&#8250;</button>
+</div>
 
-    <script>
-        const carouselTrack = document.querySelector('.carousel-track');
-        const images = carouselTrack.querySelectorAll('.carousel-image-wrapper');
-        const popupModal = document.getElementById('popup-modal');
-        const popupImage = document.getElementById('popup-image');
-        const popupClose = document.getElementById('popup-close');
-        const popupPrev = document.getElementById('popup-prev');
-        const popupNext = document.getElementById('popup-next');
-
-        let currentIndex = 0;
-        let scrollAmount = 0;
-        let scrollInterval;
-
-        // Function to show the image in the popup
-        function showPopup(index) {
-            currentIndex = index;
-            const imgSrc = images[index].querySelector('img').src;
-            popupImage.src = imgSrc;
-            popupModal.style.display = 'flex';
-            clearInterval(scrollInterval); // Pause the scrolling
-        }
-
-        // Close the popup
-        popupClose.addEventListener('click', () => {
-            popupModal.style.display = 'none';
-            scrollInterval = setInterval(smoothScroll, 10); // Resume scrolling
-        });
-
-        // Close popup if the gray background (modal) is clicked
-        popupModal.addEventListener('click', (e) => {
-            if (e.target === popupModal) {
-                popupModal.style.display = 'none';
-                scrollInterval = setInterval(smoothScroll, 10); // Resume scrolling
-            }
-        });
-
-        // Navigate to previous image
-        popupPrev.addEventListener('click', () => {
-            currentIndex = (currentIndex - 1 + images.length) % images.length;
-            showPopup(currentIndex);
-        });
-
-        // Navigate to next image
-        popupNext.addEventListener('click', () => {
-            currentIndex = (currentIndex + 1) % images.length;
-            showPopup(currentIndex);
-        });
-
-        // Clone the images and append them to the end & also have the popup option
-        images.forEach((image, index) => {
-            image.addEventListener('click', () => {
-                showPopup(index);
-            });
-            const clone = image.cloneNode(true);
-            clone.addEventListener('click', () => {
-                showPopup(index);
-            });
-            carouselTrack.appendChild(clone);
-        });
-
-        // Smooth scrolling function
-        function smoothScroll() {
-            scrollAmount -= 1; // Move left by 1px
-            if (Math.abs(scrollAmount) >= carouselTrack.offsetWidth / 2) {
-                scrollAmount = 0; // Reset position when fully scrolled
-            }
-            carouselTrack.style.transform = `translateX(${scrollAmount}px)`;
-        }
-
-        scrollInterval = setInterval(smoothScroll, 10);
-
-        // Listen for keyboard events
-        document.addEventListener('keydown', (event) => {
-            if (popupModal.style.display === 'flex') {
-                if (event.key === 'ArrowRight') {
-                    // Trigger the right navigation button
-                    popupNext.click();
-                } else if (event.key === 'ArrowLeft') {
-                    // Trigger the left navigation button
-                    popupPrev.click();
-                }
-            }
-        });
-    </script>
+<script src="viewer.js"></script>
 </body>
 </html>

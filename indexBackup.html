@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Wedding</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Lato:wght@300;400;700&family=Raleway:wght@300;400&family=Josefin+Sans:wght@300;400&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --primary:#c9a96e;--secondary:#2d4a3e;--bg:#fffdf8;
+      --text:#2c2c2c;--accent:#f0e6d3;
+      --fh:'Playfair Display',serif;--fb:'Lato',sans-serif;
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:var(--fb);background:var(--bg);color:var(--text);overflow-x:hidden}
+
+    /* ── Loading ── */
+    #loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+      align-items:center;justify-content:center;z-index:9999;transition:opacity .6s ease}
+    #loading.out{opacity:0;pointer-events:none}
+    .ring{width:48px;height:48px;border:2px solid var(--accent);border-top-color:var(--primary);
+      border-radius:50%;animation:spin 1s linear infinite}
+    .ring-label{font-family:var(--fh);font-style:italic;color:var(--primary);margin-top:16px;font-size:14px;opacity:.8}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ── Error ── */
+    #error-state{display:none;min-height:100vh;align-items:center;justify-content:center;
+      flex-direction:column;text-align:center;padding:40px}
+    #error-state.show{display:flex}
+    #error-state h2{font-family:var(--fh);font-size:2.5rem;color:var(--secondary);margin-bottom:16px;font-weight:400}
+    #error-state p{color:#999;max-width:380px;line-height:1.8}
+
+    /* ── Page ── */
+    #page{opacity:0;transition:opacity .8s ease .2s}
+    #page.in{opacity:1}
+
+    /* ═══════════ BLOCK: HERO ═══════════ */
+    .b-hero{position:relative;min-height:100vh;display:flex;align-items:center;
+      justify-content:center;text-align:center;background:var(--secondary);overflow:hidden}
+    .b-hero__bg{position:absolute;inset:0;background-size:cover;background-position:center;
+      transform:scale(1.05);transition:transform 8s ease}
+    .b-hero:hover .b-hero__bg{transform:scale(1)}
+    .b-hero__overlay{position:absolute;inset:0}
+    .b-hero__content{position:relative;z-index:2;color:#fff;padding:60px 40px;max-width:900px}
+    .b-hero__ornament{font-size:1.5rem;letter-spacing:16px;opacity:.5;margin-bottom:28px;
+      animation:fadeUp 1.2s both .1s}
+    .b-hero h1{font-family:var(--fh);font-size:clamp(2.4rem,6vw,5.5rem);font-weight:300;
+      letter-spacing:3px;line-height:1.15;animation:fadeUp 1.2s both .3s}
+    .b-hero__sub{font-size:.85rem;letter-spacing:6px;text-transform:uppercase;opacity:.75;
+      margin-top:20px;animation:fadeUp 1.2s both .5s}
+    .b-hero__date{font-family:var(--fh);font-style:italic;font-size:1.4rem;color:var(--primary);
+      margin-top:24px;animation:fadeUp 1.2s both .7s}
+    .b-hero__venue{font-size:.8rem;letter-spacing:4px;text-transform:uppercase;opacity:.6;
+      margin-top:10px;animation:fadeUp 1.2s both .9s}
+    .b-hero__scroll{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);
+      display:flex;flex-direction:column;align-items:center;gap:8px;opacity:.5}
+    .b-hero__scroll span{width:1px;height:50px;background:#fff;
+      animation:scrollPulse 2s ease-in-out infinite}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+    @keyframes scrollPulse{0%{transform:scaleY(0);transform-origin:top}
+      50%{transform:scaleY(1);transform-origin:top}
+      51%{transform:scaleY(1);transform-origin:bottom}
+      100%{transform:scaleY(0);transform-origin:bottom}}
+
+    /* ═══════════ BLOCK: TEXT ═══════════ */
+    .b-text{padding:80px 40px;max-width:780px;margin:0 auto}
+    .b-text h2{font-family:var(--fh);font-size:clamp(1.7rem,3vw,2.4rem);font-weight:400;
+      color:var(--secondary);margin-bottom:20px;line-height:1.3}
+    .b-text p{line-height:2;font-size:1.05rem;color:#666;white-space:pre-wrap}
+    .b-text.center{text-align:center}.b-text.right{text-align:right}
+
+    /* ═══════════ BLOCK: IMAGE ═══════════ */
+    .b-image figure{line-height:0}
+    .b-image img{width:100%;display:block;object-fit:cover}
+    .b-image figcaption{font-style:italic;color:#aaa;text-align:center;padding:14px;
+      font-size:.88rem;line-height:1.5}
+    .b-image.full{}
+    .b-image.medium{padding:30px 60px}
+    .b-image.small{padding:30px;max-width:600px;margin:0 auto}
+
+    /* ═══════════ BLOCK: CAROUSEL ═══════════ */
+    .b-carousel{position:relative;overflow:hidden;background:#111;user-select:none}
+    .carousel-track{display:flex;transition:transform .55s cubic-bezier(.4,0,.2,1)}
+    .carousel-slide{min-width:100%;position:relative}
+    .carousel-slide img{width:100%;object-fit:cover;display:block}
+    .carousel-slide figcaption{position:absolute;bottom:0;left:0;right:0;
+      background:linear-gradient(transparent,rgba(0,0,0,.6));
+      color:#fff;padding:20px 30px;font-style:italic;font-size:.9rem}
+    .c-btn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);
+      backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.3);color:#fff;
+      width:48px;height:48px;border-radius:50%;cursor:pointer;font-size:1.4rem;
+      display:flex;align-items:center;justify-content:center;
+      transition:background .2s;z-index:2}
+    .c-btn:hover{background:rgba(255,255,255,.3)}
+    .c-btn.prev{left:20px}.c-btn.next{right:20px}
+    .c-dots{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+      display:flex;gap:8px;z-index:2}
+    .c-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4);
+      cursor:pointer;transition:all .2s;border:1px solid rgba(255,255,255,.3)}
+    .c-dot.on{background:#fff;transform:scale(1.2)}
+
+    /* ═══════════ BLOCK: COUNTDOWN ═══════════ */
+    .b-countdown{padding:100px 40px;text-align:center;background:var(--secondary);color:#fff}
+    .b-countdown__label{font-family:var(--fh);font-style:italic;font-size:1rem;
+      letter-spacing:4px;opacity:.6;margin-bottom:50px}
+    .cd-units{display:flex;justify-content:center;gap:clamp(24px,5vw,70px);flex-wrap:wrap}
+    .cd-unit .n{font-family:var(--fh);font-size:clamp(3rem,7vw,5.5rem);font-weight:300;
+      color:var(--primary);display:block;line-height:1}
+    .cd-unit .l{font-size:.72rem;letter-spacing:4px;text-transform:uppercase;
+      opacity:.5;margin-top:10px;display:block}
+
+    /* ═══════════ BLOCK: DETAILS ═══════════ */
+    .b-details{padding:90px 40px;background:var(--accent)}
+    .b-details__title{font-family:var(--fh);text-align:center;font-size:clamp(1.8rem,3vw,2.5rem);
+      color:var(--secondary);font-weight:400;margin-bottom:56px}
+    .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:24px;max-width:960px;margin:0 auto}
+    .detail-card{background:#fff;padding:44px 30px;text-align:center;
+      box-shadow:0 8px 30px rgba(0,0,0,.06);transition:transform .3s}
+    .detail-card:hover{transform:translateY(-4px)}
+    .detail-card .ico{font-size:2.2rem;margin-bottom:18px}
+    .detail-card h4{font-family:var(--fh);font-size:1.1rem;color:var(--secondary);
+      font-weight:400;margin-bottom:12px}
+    .detail-card p{color:#888;line-height:1.8;font-size:.9rem;white-space:pre-wrap}
+
+    /* ═══════════ BLOCK: RSVP ═══════════ */
+    .b-rsvp{padding:90px 40px;text-align:center}
+    .b-rsvp h2{font-family:var(--fh);font-size:clamp(2rem,4vw,3rem);font-weight:400;
+      color:var(--secondary);margin-bottom:10px}
+    .b-rsvp__sub{color:#aaa;font-size:.9rem;letter-spacing:1px;margin-bottom:44px}
+    .rsvp-form{max-width:480px;margin:0 auto;display:grid;gap:14px}
+    .rsvp-form input,.rsvp-form select,.rsvp-form textarea{
+      padding:14px 18px;border:1px solid #e0e0e0;background:#fff;
+      font-family:var(--fb);font-size:.95rem;width:100%;outline:none;
+      transition:border-color .2s;color:var(--text)}
+    .rsvp-form input:focus,.rsvp-form select:focus{border-color:var(--primary)}
+    .rsvp-form button{padding:16px;background:var(--secondary);color:#fff;border:none;
+      font-family:var(--fh);font-size:1rem;letter-spacing:3px;cursor:pointer;
+      transition:background .25s}
+    .rsvp-form button:hover{background:var(--primary)}
+    .rsvp-ok{display:none;padding:20px;background:#f1f8e9;color:#558b2f;
+      font-style:italic;font-size:1.05rem;border-left:3px solid var(--primary)}
+
+    /* ═══════════ BLOCK: GALLERY ═══════════ */
+    .b-gallery{padding:30px 40px}
+    .gallery-grid{display:grid;gap:6px}
+    .gallery-grid.c2{grid-template-columns:repeat(2,1fr)}
+    .gallery-grid.c3{grid-template-columns:repeat(3,1fr)}
+    .gallery-grid.c4{grid-template-columns:repeat(4,1fr)}
+    .gallery-grid img{width:100%;aspect-ratio:1;object-fit:cover;display:block;
+      cursor:pointer;transition:opacity .25s}
+    .gallery-grid img:hover{opacity:.88}
+
+    /* ═══════════ BLOCK: DIVIDER ═══════════ */
+    .b-divider{padding:24px 60px;display:flex;align-items:center;justify-content:center}
+    .div-line{flex:1;height:1px;background:currentColor;opacity:.18}
+    .div-center{padding:0 20px;font-size:1.1rem;letter-spacing:12px;opacity:.4}
+
+    /* ═══════════ BLOCK: QUOTE ═══════════ */
+    .b-quote{padding:90px 60px;text-align:center}
+    .b-quote blockquote{font-family:var(--fh);font-style:italic;
+      font-size:clamp(1.3rem,2.5vw,2rem);color:var(--secondary);
+      max-width:680px;margin:0 auto 24px;line-height:1.7;font-weight:300;
+      position:relative}
+    .b-quote blockquote::before{content:'\201C';position:absolute;top:-20px;left:-30px;
+      font-size:6rem;line-height:1;color:var(--primary);opacity:.2;font-style:normal}
+    .b-quote cite{font-style:normal;font-size:.78rem;letter-spacing:4px;
+      text-transform:uppercase;color:#bbb}
+
+    /* ═══════════ LIGHTBOX ═══════════ */
+    #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9000;
+      display:none;align-items:center;justify-content:center}
+    #lightbox.on{display:flex}
+    #lightbox img{max-width:90vw;max-height:90vh;object-fit:contain}
+    #lightbox-close{position:absolute;top:24px;right:30px;color:#fff;font-size:2rem;
+      cursor:pointer;background:none;border:none;opacity:.7;transition:opacity .2s}
+    #lightbox-close:hover{opacity:1}
+
+    /* ═══════════ EDIT FAB ═══════════ */
+    .edit-fab{position:fixed;bottom:28px;right:28px;background:var(--secondary);color:#fff;
+      padding:12px 22px;text-decoration:none;font-size:.78rem;letter-spacing:2.5px;
+      text-transform:uppercase;box-shadow:0 6px 24px rgba(0,0,0,.25);
+      transition:all .25s;z-index:100;font-family:var(--fb)}
+    .edit-fab:hover{background:var(--primary);transform:translateY(-2px)}
+
+    @media(max-width:768px){
+      .b-text,.b-gallery,.b-image.medium,.b-image.small{padding:50px 22px}
+      .b-details,.b-countdown,.b-rsvp,.b-quote{padding:60px 22px}
+      .gallery-grid.c3,.gallery-grid.c4{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="ring"></div>
+  <p class="ring-label">Loading your celebration…</p>
+</div>
+
+<div id="error-state">
+  <h2>Page Not Found</h2>
+  <p>We couldn't find a wedding page with that ID.<br>Please check your link and try again.</p>
+</div>
+
+<div id="page"></div>
+<a href="editor.html" class="edit-fab">✏ Edit</a>
+
+<div id="lightbox">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+// ── Init Firebase ──────────────────────────────────────────
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.firestore();
+
+// ── Parse weddingId ────────────────────────────────────────
+const params  = new URLSearchParams(window.location.search);
+const weddingId = params.get('weddingId');
+
+if (!weddingId) showError('No wedding ID provided in URL.');
+else loadWedding(weddingId);
+
+async function loadWedding(id) {
+  try {
+    const snap = await db.collection('weddings').doc(id).get();
+    if (!snap.exists) { showError('Wedding not found.'); return; }
+    const data = snap.data();
+    document.title = data.coupleNames ? `${data.coupleNames} — Our Wedding` : 'Our Wedding';
+    applyTheme(data.theme || DEFAULT_THEME);
+    renderPage(data);
+  } catch(e) {
+    console.error(e);
+    showError('Could not load wedding data.');
+  }
+}
+
+function applyTheme(t) {
+  const r = document.documentElement.style;
+  if(t.primary)    r.setProperty('--primary',    t.primary);
+  if(t.secondary)  r.setProperty('--secondary',  t.secondary);
+  if(t.background) r.setProperty('--bg',         t.background);
+  if(t.text)       r.setProperty('--text',       t.text);
+  if(t.accent)     r.setProperty('--accent',     t.accent);
+  if(t.fontHeading) r.setProperty('--fh', `'${t.fontHeading}',serif`);
+  if(t.fontBody)    r.setProperty('--fb', `'${t.fontBody}',sans-serif`);
+}
+
+function renderPage(data) {
+  const pg = document.getElementById('page');
+  pg.innerHTML = (data.blocks||[]).map(renderBlock).join('');
+  pg.querySelectorAll('.b-carousel').forEach(initCarousel);
+  pg.querySelectorAll('[data-countdown]').forEach(el => initCountdown(el, el.dataset.countdown));
+  pg.querySelectorAll('.gallery-grid img').forEach(img => img.onclick = () => openLightbox(img.src));
+  document.getElementById('loading').classList.add('out');
+  pg.classList.add('in');
+}
+
+// ── Block renderers ────────────────────────────────────────
+function renderBlock(b) {
+  const fns = {hero,text,image,carousel,countdown,details,rsvp,gallery,divider,quote};
+  return (fns[b.type]||(() => ''))(b);
+}
+
+function hero(b) {
+  const bg  = b.bgImage ? `background-image:url('${driveUrl(b.bgImage)}')` : '';
+  const opa = b.overlayOpacity ?? .45;
+  return `
+<section class="b-hero">
+  ${b.bgImage?`<div class="b-hero__bg" style="${bg}"></div>`:''}
+  <div class="b-hero__overlay" style="background:rgba(0,0,0,${opa})"></div>
+  <div class="b-hero__content">
+    <div class="b-hero__ornament">✦ ✦ ✦</div>
+    <h1>${b.title||'Your Names Here'}</h1>
+    ${b.subtitle?`<p class="b-hero__sub">${b.subtitle}</p>`:''}
+    ${b.date?`<p class="b-hero__date">${b.date}</p>`:''}
+    ${b.venue?`<p class="b-hero__venue">${b.venue}</p>`:''}
+  </div>
+  <div class="b-hero__scroll"><span></span></div>
+</section>`;
+}
+
+function text(b) {
+  const a = b.align||'left';
+  const sz = {small:'.95rem',medium:'1.05rem',large:'1.2rem'}[b.size]||'1.05rem';
+  return `
+<div class="b-text ${a}" style="text-align:${a}">
+  ${b.heading?`<h2>${b.heading}</h2>`:''}
+  <p style="font-size:${sz}">${esc(b.content||'').replace(/\n/g,'<br>')}</p>
+</div>`;
+}
+
+function image(b) {
+  if(!b.src) return '';
+  const w = b.width||'full';
+  return `
+<div class="b-image ${w}">
+  <figure>
+    <img src="${driveUrl(b.src)}" alt="${esc(b.caption||'')}" loading="lazy">
+    ${b.caption?`<figcaption>${esc(b.caption)}</figcaption>`:''}
+  </figure>
+</div>`;
+}
+
+function carousel(b) {
+  const imgs = b.images||[];
+  if(!imgs.length) return '';
+  const h = b.height||520;
+  return `
+<section class="b-carousel" data-auto="${b.autoplay?b.interval||4000:0}">
+  <div class="carousel-track">
+    ${imgs.map(img=>`
+    <div class="carousel-slide">
+      <img src="${driveUrl(img.src||img)}" alt="" style="height:${h}px" loading="lazy">
+      ${img.caption?`<figcaption>${esc(img.caption)}</figcaption>`:''}
+    </div>`).join('')}
+  </div>
+  <button class="c-btn prev" aria-label="Previous">&#8249;</button>
+  <button class="c-btn next" aria-label="Next">&#8250;</button>
+  <div class="c-dots">
+    ${imgs.map((_,i)=>`<div class="c-dot${i===0?' on':''}" data-i="${i}"></div>`).join('')}
+  </div>
+</section>`;
+}
+
+function countdown(b) {
+  if(!b.targetDate) return '';
+  return `
+<section class="b-countdown">
+  <p class="b-countdown__label">${esc(b.label||'Until the Big Day')}</p>
+  <div class="cd-units" data-countdown="${b.targetDate}">
+    <div class="cd-unit"><span class="n" id="cd-d">--</span><span class="l">Days</span></div>
+    <div class="cd-unit"><span class="n" id="cd-h">--</span><span class="l">Hours</span></div>
+    <div class="cd-unit"><span class="n" id="cd-m">--</span><span class="l">Minutes</span></div>
+    <div class="cd-unit"><span class="n" id="cd-s">--</span><span class="l">Seconds</span></div>
+  </div>
+</section>`;
+}
+
+function details(b) {
+  const items = b.items||[];
+  return `
+<section class="b-details">
+  ${b.heading?`<h2 class="b-details__title">${esc(b.heading)}</h2>`:''}
+  <div class="detail-grid">
+    ${items.map(it=>`
+    <div class="detail-card">
+      <div class="ico">${it.icon||'📅'}</div>
+      <h4>${esc(it.title||'')}</h4>
+      <p>${esc(it.content||'').replace(/\n/g,'<br>')}</p>
+    </div>`).join('')}
+  </div>
+</section>`;
+}
+
+function rsvp(b) {
+  return `
+<section class="b-rsvp">
+  <h2>${esc(b.title||'RSVP')}</h2>
+  ${b.subtitle?`<p class="b-rsvp__sub">${esc(b.subtitle)}</p>`:''}
+  <form class="rsvp-form" data-wid="${weddingId}" onsubmit="submitRSVP(event,this)">
+    <input name="name" type="text" placeholder="Full Name" required>
+    <input name="email" type="email" placeholder="Email Address" required>
+    <select name="attending">
+      <option value="yes">Joyfully Accepts ♥</option>
+      <option value="no">Regretfully Declines</option>
+    </select>
+    <input name="guests" type="number" placeholder="Number of Guests" min="1" max="20" value="1">
+    <textarea name="message" placeholder="Any dietary requirements or message? (optional)" rows="3" style="resize:vertical;padding:12px 18px;border:1px solid #e0e0e0;font-family:var(--fb)"></textarea>
+    <button type="submit">Send RSVP</button>
+  </form>
+  <p class="rsvp-ok">Thank you! We can't wait to celebrate with you. ♥</p>
+</section>`;
+}
+
+function gallery(b) {
+  const imgs = b.images||[];
+  if(!imgs.length) return '';
+  const c = b.columns||3;
+  return `
+<div class="b-gallery">
+  <div class="gallery-grid c${c}">
+    ${imgs.map(img=>`
+    <img src="${driveUrl(img.src||img)}" alt="${esc(img.caption||'')}" loading="lazy">`).join('')}
+  </div>
+</div>`;
+}
+
+function divider(b) {
+  const s = b.style||'floral';
+  const c = b.color||'var(--primary)';
+  const inner = s==='line'
+    ? `<div class="div-line" style="background:${c}"></div>`
+    : s==='floral'
+    ? `<div class="div-line" style="background:${c}"></div>
+       <div class="div-center" style="color:${c}">✿ ✾ ✿</div>
+       <div class="div-line" style="background:${c}"></div>`
+    : s==='dots'
+    ? `<div class="div-line" style="background:${c}"></div>
+       <div class="div-center" style="color:${c};letter-spacing:8px">···</div>
+       <div class="div-line" style="background:${c}"></div>`
+    : `<svg viewBox="0 0 400 16" width="100%" height="16" style="max-width:400px">
+         <path d="M0,8 Q50,0 100,8 T200,8 T300,8 T400,8" stroke="${c}" stroke-width="1.5" fill="none" opacity=".5"/>
+       </svg>`;
+  return `<div class="b-divider" style="color:${c}">${inner}</div>`;
+}
+
+function quote(b) {
+  return `
+<section class="b-quote">
+  <blockquote>${esc(b.text||'')}</blockquote>
+  ${b.author?`<cite>— ${esc(b.author)}</cite>`:''}
+</section>`;
+}
+
+// ── Carousel ────────────────────────────────────────────────
+function initCarousel(el) {
+  const track = el.querySelector('.carousel-track');
+  const slides = el.querySelectorAll('.carousel-slide');
+  const dots   = el.querySelectorAll('.c-dot');
+  const auto   = parseInt(el.dataset.auto)||0;
+  let cur = 0, timer;
+
+  const go = i => {
+    cur = (i + slides.length) % slides.length;
+    track.style.transform = `translateX(-${cur*100}%)`;
+    dots.forEach((d,j)=>d.classList.toggle('on', j===cur));
+  };
+
+  el.querySelector('.prev').onclick = () => { clearInterval(timer); go(cur-1); restart(); };
+  el.querySelector('.next').onclick = () => { clearInterval(timer); go(cur+1); restart(); };
+  dots.forEach((d,i) => d.onclick = () => { clearInterval(timer); go(i); restart(); });
+
+  // Swipe
+  let tx=0;
+  el.addEventListener('touchstart', e=>{ tx=e.touches[0].clientX; }, {passive:true});
+  el.addEventListener('touchend',   e=>{ const dx=e.changedTouches[0].clientX-tx; if(Math.abs(dx)>40) go(dx<0?cur+1:cur-1); });
+
+  function restart() { if(auto>0) timer = setInterval(()=>go(cur+1), auto); }
+  restart();
+}
+
+// ── Countdown ───────────────────────────────────────────────
+function initCountdown(el, targetDate) {
+  const target = new Date(targetDate);
+  function tick() {
+    const diff = target - Date.now();
+    if (diff <= 0) { el.innerHTML = '<div style="font-size:2rem;color:var(--primary);font-family:var(--fh);font-style:italic">Today is the Day! ♥</div>'; return; }
+    const set = (id, v) => { const e = el.querySelector(id); if(e) e.textContent = String(Math.floor(v)).padStart(2,'0'); };
+    set('#cd-d', diff/86400000);
+    set('#cd-h', (diff%86400000)/3600000);
+    set('#cd-m', (diff%3600000)/60000);
+    set('#cd-s', (diff%60000)/1000);
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+// ── RSVP Submit ─────────────────────────────────────────────
+async function submitRSVP(e, form) {
+  e.preventDefault();
+  const btn = form.querySelector('button');
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  const data = Object.fromEntries(new FormData(form));
+  try {
+    await db.collection('weddings').doc(form.dataset.wid).collection('rsvps').add({
+      ...data, submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    form.style.display = 'none';
+    form.nextElementSibling.style.display = 'block';
+  } catch(err) {
+    alert('Sorry, there was a problem. Please try again.');
+    btn.textContent = 'Send RSVP'; btn.disabled = false;
+  }
+}
+
+// ── Lightbox ────────────────────────────────────────────────
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('on');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('on'); }
+document.getElementById('lightbox').onclick = e => { if(e.target === e.currentTarget) closeLightbox(); };
+
+// ── Helpers ─────────────────────────────────────────────────
+function showError(msg) {
+  document.getElementById('loading').classList.add('out');
+  document.getElementById('error-state').classList.add('show');
+}
+function esc(s) {
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>

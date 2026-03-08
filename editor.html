@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wedding Studio — Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,300;0,400;1,300&family=Lato:wght@300;400;700&family=Inter:wght@300;400;500;600&family=Cinzel:wght@400&family=Great+Vibes&family=Alex+Brush&family=Sacramento&display=swap" rel="stylesheet">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <!-- Drag & Drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <!-- App scripts (order matters) -->
+  <script src="config.js"></script>
+  <script src="icons.js"></script>
+  <script src="blocks.js"></script>
+  <script src="props.js"></script>
+
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      /* Editor chrome — dark neutral */
+      --ed-bg:        #0d0d18;
+      --ed-sidebar:   #13131f;
+      --ed-border:    #1e1e32;
+      --ed-accent:    #7c6ef0;
+      --ed-accent2:   #a099f8;
+      --ed-t1:        #e8e8f0;
+      --ed-t2:        #9090a8;
+      --ed-t3:        #5a5a72;
+      --ed-hover:     rgba(124,110,240,.08);
+      --ed-canvas-bg: #e8e8f0;
+      /* Wedding theme (overridden by applyThemeCSS) */
+      --primary:#c9a96e; --secondary:#2d4a3e; --bg:#fffdf8;
+      --text:#2c2c2c; --accent:#f0e6d3;
+      --fh:'Playfair Display',serif; --fb:'Lato',sans-serif;
+    }
+    html, body { height:100%; overflow:hidden; }
+    body { font-family:'Inter',sans-serif; background:var(--ed-bg); color:var(--ed-t1);
+      display:grid; grid-template-rows:56px 1fr; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:#2a2a42; border-radius:3px; }
+
+    /* ══════════ TOP BAR ══════════ */
+    .topbar { background:var(--ed-bg); border-bottom:1px solid var(--ed-border);
+      display:flex; align-items:center; padding:0 12px; gap:8px; z-index:100;
+      overflow-x:auto; white-space:nowrap; }
+    .topbar::-webkit-scrollbar { height:0; }
+    .tb-logo { font-family:'Playfair Display'; font-style:italic; font-size:1.05rem;
+      color:var(--ed-accent2); margin-right:6px; flex-shrink:0; }
+    .tb-sep { width:1px; height:30px; background:var(--ed-border); flex-shrink:0; }
+    .tb-label { font-size:.68rem; color:var(--ed-t3); letter-spacing:1px; text-transform:uppercase; }
+    .tb-select { background:#1a1a2e; border:1px solid var(--ed-border); color:var(--ed-t1);
+      padding:5px 8px; font-size:.82rem; font-family:'Inter'; border-radius:4px;
+      cursor:pointer; min-width:160px; outline:none; }
+    .tb-btn { padding:6px 12px; border-radius:5px; border:1px solid var(--ed-border);
+      background:transparent; color:var(--ed-t2); font-size:.78rem; font-family:'Inter';
+      cursor:pointer; transition:all .15s; display:flex; align-items:center;
+      gap:5px; white-space:nowrap; flex-shrink:0; }
+    .tb-btn:hover { background:var(--ed-hover); color:var(--ed-t1); border-color:var(--ed-accent); }
+    .tb-btn.primary { background:var(--ed-accent); color:#fff; border-color:var(--ed-accent); }
+    .tb-btn.primary:hover { background:#6859d8; }
+    .tb-user { display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
+    .tb-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover;
+      background:var(--ed-accent); }
+    .tb-name { font-size:.78rem; color:var(--ed-t2); max-width:110px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .save-indicator { font-size:.7rem; color:var(--ed-t3); display:none; }
+    .save-indicator.show { display:block; }
+
+    /* ══════════ BODY GRID ══════════ */
+    .editor-body { display:grid; grid-template-columns:240px 1fr 288px; overflow:hidden; }
+
+    /* ══════════ LEFT SIDEBAR ══════════ */
+    .sidebar-left { background:var(--ed-sidebar); border-right:1px solid var(--ed-border);
+      display:flex; flex-direction:column; overflow:hidden; }
+    .sl-header { padding:12px 14px 10px; border-bottom:1px solid var(--ed-border); }
+    .sl-title { font-size:.68rem; text-transform:uppercase; letter-spacing:2px; color:var(--ed-t3); }
+    .sl-body { overflow-y:auto; padding:6px; flex:1; }
+    .sl-cat { font-size:.62rem; text-transform:uppercase; letter-spacing:2px;
+      color:var(--ed-t3); padding:10px 8px 5px; }
+    .palette-item { display:flex; align-items:center; gap:9px; padding:9px 10px;
+      border-radius:6px; cursor:grab; transition:background .12s;
+      border:1px solid transparent; margin-bottom:2px; }
+    .palette-item:hover { background:var(--ed-hover); border-color:var(--ed-border); }
+    .palette-item:active { cursor:grabbing; }
+    .pi-icon { width:30px; height:30px; border-radius:5px; display:flex;
+      align-items:center; justify-content:center; font-size:.95rem; flex-shrink:0; }
+    .pi-icon.c-hero     { background:#1e3a2f; }
+    .pi-icon.c-text     { background:#1a1a3e; }
+    .pi-icon.c-image    { background:#2a1a3e; }
+    .pi-icon.c-carousel { background:#1a2a3e; }
+    .pi-icon.c-countdown{ background:#2a1e1a; }
+    .pi-icon.c-details  { background:#1a2a1a; }
+    .pi-icon.c-rsvp     { background:#2a1a2a; }
+    .pi-icon.c-gallery  { background:#1e1a2a; }
+    .pi-icon.c-divider  { background:#2a2a1a; }
+    .pi-icon.c-quote    { background:#2a1a1a; }
+    .pi-label { font-size:.8rem; color:var(--ed-t1); font-weight:500; }
+    .pi-desc  { font-size:.68rem; color:var(--ed-t3); margin-top:1px; }
+
+    /* ══════════ CANVAS ══════════ */
+    .canvas-area { background:var(--ed-canvas-bg); overflow-y:auto; position:relative; }
+    .canvas-page { background:#fff; max-width:860px; margin:28px auto 80px;
+      box-shadow:0 8px 40px rgba(0,0,0,.18); min-height:300px; position:relative; }
+    .canvas-empty { padding:70px 40px; text-align:center; color:#c0c0d8; }
+    .canvas-empty .ce-icon { font-size:2.8rem; margin-bottom:14px; opacity:.5; }
+    .canvas-empty p { font-size:.88rem; line-height:1.9; }
+    .canvas-empty small { font-size:.76rem; color:#a0a0b8; }
+
+    /* ── Block wrapper ── */
+    .canvas-block { position:relative; border:2px solid transparent; transition:border-color .12s; }
+    .canvas-block:hover { border-color:#c8c4f5; }
+    .canvas-block.selected { border-color:var(--ed-accent) !important; }
+    .block-toolbar { position:absolute; top:-2px; left:-2px; z-index:10;
+      display:flex; align-items:center; opacity:0; transition:opacity .12s;
+      background:var(--ed-accent); border-radius:0 0 5px 0; }
+    .canvas-block:hover .block-toolbar,
+    .canvas-block.selected .block-toolbar { opacity:1; }
+    .block-drag { padding:5px 7px; cursor:grab; color:rgba(255,255,255,.8); font-size:.95rem; }
+    .block-drag:active { cursor:grabbing; }
+    .bt-name { padding:4px 7px 4px 2px; font-size:.68rem; color:rgba(255,255,255,.9);
+      font-weight:700; letter-spacing:.5px; text-transform:uppercase; white-space:nowrap; }
+    .bt-actions { display:flex; border-left:1px solid rgba(255,255,255,.2); }
+    .bt-btn { padding:5px 7px; cursor:pointer; color:rgba(255,255,255,.7);
+      background:none; border:none; font-size:.82rem; transition:color .12s; }
+    .bt-btn:hover { color:#fff; }
+    .bt-btn.del:hover { color:#ff8a90; }
+
+    /* Sortable states */
+    .sortable-ghost { opacity:.3; border:2px dashed var(--ed-accent) !important; background:#f0eeff; }
+    .sortable-drag  { opacity:.9; box-shadow:0 14px 40px rgba(0,0,0,.35); }
+
+    /* ── Canvas block preview base styles ── */
+    .prev-hero { position:relative; min-height:190px; display:flex; align-items:center;
+      justify-content:center; text-align:center; background:var(--secondary); overflow:hidden; }
+    .prev-hero-ov { position:absolute; inset:0; }
+    .prev-hero-ct { position:relative; z-index:1; color:#fff; padding:28px 24px; }
+    .prev-ornament { font-size:.7rem; letter-spacing:10px; opacity:.4; margin-bottom:8px; }
+    .prev-hero-h1 { font-family:var(--fh); font-size:1.6rem; font-weight:300; color:#fff; }
+    .prev-hero-sub { font-size:.68rem; letter-spacing:4px; text-transform:uppercase; opacity:.6; margin-top:8px; }
+    .prev-hero-date { font-family:var(--fh); font-style:italic; color:var(--primary); margin-top:10px; font-size:.95rem; }
+    .prev-hero-venue { font-size:.65rem; letter-spacing:3px; text-transform:uppercase; opacity:.5; margin-top:5px; }
+    .prev-text { padding:22px 30px; }
+    .prev-text-h2 { font-family:var(--fh); font-size:1rem; color:var(--secondary); margin-bottom:8px; font-weight:400; }
+    .prev-text-p { font-size:.8rem; color:#888; line-height:1.7; }
+    .prev-image {}
+    .prev-placeholder { height:90px; background:#eeeef8; display:flex; align-items:center;
+      justify-content:center; font-size:.78rem; color:#b0b0c8; }
+    .prev-carousel { background:#111; height:100px; display:flex; align-items:center;
+      justify-content:center; gap:3px; overflow:hidden; }
+    .prev-carousel img { height:100px; width:calc(100%/3); object-fit:cover; }
+    .prev-car-ph { color:#555; font-size:.82rem; }
+    .prev-rsvp { padding:20px 28px; }
+
+    /* ══════════ RIGHT PANEL ══════════ */
+    .sidebar-right { background:#fff; border-left:1px solid #e8e8f0;
+      display:flex; flex-direction:column; overflow:hidden; }
+    .sr-header { padding:14px 16px; border-bottom:1px solid #eeeefc; }
+    .sr-label { font-size:.66rem; text-transform:uppercase; letter-spacing:2px; color:#9090a8; font-weight:600; }
+    .sr-block-type { font-size:.88rem; color:#333; font-weight:600; margin-top:3px; }
+    .sr-body { overflow-y:auto; padding:14px 16px; flex:1; }
+    .sr-empty { text-align:center; padding:40px 16px; color:#c0c0d0; }
+    .sr-empty .se-icon { font-size:1.8rem; margin-bottom:10px; }
+    .sr-empty p { font-size:.8rem; line-height:1.7; }
+
+    /* ── Form controls ── */
+    .prop-group { margin-bottom:14px; }
+    .prop-label { font-size:.68rem; text-transform:uppercase; letter-spacing:1px; color:#888;
+      font-weight:700; margin-bottom:5px; display:block; }
+    .prop-input { width:100%; padding:7px 9px; border:1px solid #e0e0ee; border-radius:4px;
+      font-size:.82rem; font-family:'Inter'; color:#333; outline:none;
+      transition:border-color .15s; background:#fff; }
+    .prop-input:focus { border-color:var(--ed-accent); }
+    .prop-textarea { width:100%; padding:7px 9px; border:1px solid #e0e0ee; border-radius:4px;
+      font-size:.82rem; font-family:'Inter'; color:#333; outline:none; resize:vertical;
+      min-height:70px; transition:border-color .15s; }
+    .prop-textarea:focus { border-color:var(--ed-accent); }
+    .prop-select { width:100%; padding:7px 9px; border:1px solid #e0e0ee; border-radius:4px;
+      font-size:.82rem; font-family:'Inter'; color:#333; outline:none; background:#fff; cursor:pointer; }
+    .prop-range { display:flex; align-items:center; gap:8px; }
+    .prop-range input[type=range] { flex:1; accent-color:var(--ed-accent); }
+    .rv { font-size:.78rem; color:#999; min-width:32px; text-align:right; }
+    .prop-toggle { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:.82rem; color:#555; }
+    .prop-toggle input[type=checkbox] { accent-color:var(--ed-accent); width:14px; height:14px; cursor:pointer; }
+    .prop-color-row { display:flex; align-items:center; gap:8px; }
+    .prop-color-row input[type=color] { width:34px; height:34px; border:1px solid #e0e0ee;
+      border-radius:4px; cursor:pointer; padding:2px; background:none; flex-shrink:0; }
+    .prop-color-row .prop-input { flex:1; }
+    .prop-divider { border:none; border-top:1px solid #f0f0f8; margin:14px 0; }
+    .prop-section-head { font-size:.65rem; text-transform:uppercase; letter-spacing:2px;
+      color:var(--ed-accent); font-weight:700; padding:2px 0 8px;
+      border-bottom:1px solid #f0f0f8; margin-bottom:10px; }
+    .prop-note { font-size:.72rem; color:#aaa; line-height:1.6; margin-top:-6px; margin-bottom:12px; }
+    .prop-note code { font-size:.7rem; background:#f5f5f8; padding:1px 4px; border-radius:3px; color:#7060c0; }
+    .align-btns { display:flex; gap:3px; }
+    .align-btn { flex:1; padding:6px 4px; background:#f5f5f8; border:1px solid #e0e0ee;
+      border-radius:4px; cursor:pointer; font-size:.72rem; color:#888; transition:all .12s; }
+    .align-btn.on, .align-btn:hover { background:var(--ed-accent); border-color:var(--ed-accent); color:#fff; }
+    /* Array items */
+    .array-item { background:#f8f8fc; border:1px solid #e8e8f5; border-radius:5px;
+      padding:9px; margin-bottom:7px; }
+    .array-item-header { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+    .array-item-num { font-size:.68rem; font-weight:700; color:var(--ed-accent);
+      background:#ede8ff; padding:2px 6px; border-radius:3px; }
+    .array-item-del { margin-left:auto; background:none; border:none; color:#ccc;
+      cursor:pointer; font-size:.9rem; transition:color .12s; }
+    .array-item-del:hover { color:#e05b6a; }
+    /* Buttons */
+    .prop-btn { padding:7px 10px; border-radius:4px; font-family:'Inter'; font-size:.78rem;
+      cursor:pointer; border:1px solid #e0e0ee; background:#f5f5f8; color:#555;
+      transition:all .15s; display:inline-block; margin-top:4px; }
+    .prop-btn:hover { background:#eaeaf8; color:#333; }
+    .prop-btn.full { width:100%; display:block; text-align:center; margin-top:8px; }
+    .prop-btn.secondary { background:#f5f5f8; color:#666; }
+    .prop-btn.small { padding:4px 8px; font-size:.72rem; }
+
+    /* ── Mode toggle (RSVP) ── */
+    .mode-toggle { display:flex; gap:4px; margin-bottom:10px; }
+    .mode-btn { flex:1; padding:8px; border:1px solid #e0e0ee; background:#f5f5f8;
+      border-radius:5px; font-size:.78rem; color:#888; cursor:pointer; transition:all .15s; }
+    .mode-btn.on { background:var(--ed-accent); border-color:var(--ed-accent); color:#fff; }
+
+    /* ── Detail template chips ── */
+    .template-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+    .template-chip { padding:4px 8px; background:#f0eeff; border:1px solid #d8d0ff;
+      border-radius:20px; font-size:.72rem; color:#6050c0; cursor:pointer; transition:all .15s; }
+    .template-chip:hover { background:var(--ed-accent); border-color:var(--ed-accent); color:#fff; }
+
+    /* ── Icon picker ── */
+    .icon-selected-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .icon-preview { font-size:1.6rem; line-height:1; }
+    .icon-picker-wrap { margin-bottom:10px; }
+    .icon-picker { max-height:220px; overflow-y:auto; border:1px solid #e0e0ee;
+      border-radius:5px; padding:8px; background:#fff; }
+    .ip-category { font-size:.62rem; text-transform:uppercase; letter-spacing:2px;
+      color:#aaa; font-weight:700; padding:6px 2px 3px; }
+    .ip-grid { display:flex; flex-wrap:wrap; gap:3px; margin-bottom:6px; }
+    .ip-btn { width:34px; height:34px; border:1px solid #eee; border-radius:5px;
+      background:#fafafa; cursor:pointer; font-size:1.1rem; display:flex;
+      align-items:center; justify-content:center; transition:all .12s; }
+    .ip-btn:hover { background:#f0eeff; border-color:var(--ed-accent); transform:scale(1.1); }
+    .ip-btn.selected { background:#ede8ff; border-color:var(--ed-accent);
+      box-shadow:0 0 0 2px rgba(124,110,240,.3); }
+
+    /* ══════════ MODALS ══════════ */
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:1000;
+      display:none; align-items:center; justify-content:center; padding:20px; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:#fff; border-radius:12px; width:100%; max-width:500px;
+      max-height:92vh; display:flex; flex-direction:column; overflow:hidden;
+      box-shadow:0 24px 80px rgba(0,0,0,.4); }
+    .modal.wide { max-width:640px; }
+    .modal-header { padding:18px 22px 14px; border-bottom:1px solid #f0f0f8;
+      display:flex; align-items:center; justify-content:space-between; }
+    .modal-title { font-size:.95rem; font-weight:700; color:#222; }
+    .modal-close { background:none; border:none; font-size:1.1rem; cursor:pointer;
+      color:#aaa; transition:color .12s; }
+    .modal-close:hover { color:#333; }
+    .modal-body { padding:20px 22px; overflow-y:auto; flex:1; }
+    .modal-footer { padding:14px 22px; border-top:1px solid #f0f0f8;
+      display:flex; justify-content:flex-end; gap:8px; }
+    .mf-btn { padding:8px 18px; border-radius:5px; font-family:'Inter'; font-size:.82rem;
+      cursor:pointer; border:1px solid #e0e0ee; background:#fff; color:#666; transition:all .15s; }
+    .mf-btn:hover { background:#f8f8ff; }
+    .mf-btn.primary { background:var(--ed-accent); color:#fff; border-color:var(--ed-accent); }
+    .mf-btn.primary:hover { background:#6859d8; }
+    .modal-input { width:100%; padding:9px 11px; border:1px solid #e0e0ee; border-radius:5px;
+      font-size:.88rem; font-family:'Inter'; color:#333; outline:none; margin-top:4px;
+      transition:border-color .15s; }
+    .modal-input:focus { border-color:var(--ed-accent); }
+    .modal-input-label { font-size:.72rem; text-transform:uppercase; letter-spacing:1px;
+      color:#888; font-weight:700; display:block; margin-bottom:3px; }
+    .modal-group { margin-bottom:14px; }
+    /* Sign-in modal */
+    .signin-modal-body { text-align:center; padding:44px 32px; }
+    .sm-logo { font-family:'Playfair Display'; font-style:italic; font-size:1.7rem;
+      color:var(--ed-accent); margin-bottom:8px; }
+    .sm-sub { font-size:.85rem; color:#888; margin-bottom:28px; line-height:1.7; }
+    .google-btn { display:flex; align-items:center; gap:10px; background:#fff;
+      border:2px solid #e0e0ee; border-radius:8px; padding:11px 18px; cursor:pointer;
+      font-size:.88rem; font-family:'Inter'; font-weight:600; color:#333;
+      transition:all .15s; width:100%; justify-content:center; }
+    .google-btn:hover { background:#f8f8ff; border-color:var(--ed-accent); }
+    /* Theme modal */
+    .theme-colors-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .theme-swatch { display:flex; align-items:center; gap:10px; }
+    .theme-swatch input[type=color] { width:38px; height:38px; border:1px solid #e0e0ee;
+      border-radius:7px; cursor:pointer; padding:2px; background:none; flex-shrink:0; }
+    .theme-swatch-info { flex:1; }
+    .ts-label { font-size:.68rem; text-transform:uppercase; letter-spacing:1px; color:#888; font-weight:700; }
+    .ts-val { font-size:.8rem; color:#666; margin-top:2px; }
+    .theme-font-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .theme-font-row .prop-select { margin-top:4px; }
+    .presets-row { display:flex; gap:8px; flex-wrap:wrap; }
+    .preset-swatch { cursor:pointer; border-radius:7px; overflow:hidden;
+      border:2px solid #eee; transition:border-color .15s; width:64px; }
+    .preset-swatch:hover { border-color:var(--ed-accent); }
+    .ps-name { padding:4px; font-size:.66rem; color:#666; text-align:center; background:#fff; }
+    .theme-section { font-size:.65rem; text-transform:uppercase; letter-spacing:2px; color:#aaa;
+      font-weight:700; margin:18px 0 10px; }
+
+    /* ── Toast ── */
+    .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(90px);
+      background:#1a1a2e; color:#fff; padding:9px 18px; border-radius:7px; font-size:.82rem;
+      z-index:9999; transition:transform .28s; pointer-events:none; white-space:nowrap; }
+    .toast.show { transform:translateX(-50%) translateY(0); }
+    .toast.ok  { border-left:3px solid #4caf87; }
+    .toast.err { border-left:3px solid #e05b6a; }
+
+    /* ── App loading ── */
+    #app-loading { position:fixed; inset:0; background:#0d0d18; z-index:9000;
+      display:flex; align-items:center; justify-content:center; flex-direction:column;
+      transition:opacity .35s; }
+    #app-loading.out { opacity:0; pointer-events:none; }
+    .al-logo { font-family:'Playfair Display'; font-style:italic; font-size:1.5rem;
+      color:var(--ed-accent2); margin-bottom:22px; }
+    .al-ring { width:38px; height:38px; border:2px solid #1e1e32;
+      border-top-color:var(--ed-accent); border-radius:50%; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ══ APP LOADING ══ -->
+<div id="app-loading">
+  <div class="al-logo">✦ Wedding Studio</div>
+  <div class="al-ring"></div>
+</div>
+
+<!-- ══ TOP BAR ══ -->
+<header class="topbar">
+  <div class="tb-logo">✦ Wedding Studio</div>
+  <div class="tb-sep"></div>
+  <span class="tb-label">Wedding</span>
+  <select class="tb-select" id="wedding-select" onchange="onWeddingSelect(this.value)">
+    <option value="">— Select a Wedding —</option>
+  </select>
+  <button class="tb-btn" onclick="openModal('new-wedding-modal')">＋ New</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="openModal('theme-modal')">🎨 Theme</button>
+  <button class="tb-btn" onclick="previewPage()">👁 Preview</button>
+  <button class="tb-btn" onclick="viewRsvps()">📬 Responses</button>
+  <button class="tb-btn primary" id="save-btn" onclick="saveWedding()">💾 Save</button>
+  <span class="save-indicator" id="save-indicator">Saved ✓</span>
+  <div class="tb-sep"></div>
+  <div class="tb-user">
+    <img class="tb-avatar" id="user-avatar" src="" alt="">
+    <span class="tb-name" id="user-name">Not signed in</span>
+    <button class="tb-btn" id="signout-btn" onclick="signOut()" style="display:none;color:#e05b6a">Sign out</button>
+  </div>
+</header>
+
+<!-- ══ EDITOR BODY ══ -->
+<div class="editor-body">
+
+  <!-- LEFT: Block Palette -->
+  <aside class="sidebar-left">
+    <div class="sl-header"><div class="sl-title">Block Library</div></div>
+    <div class="sl-body" id="palette">
+
+      <div class="sl-cat">Layout</div>
+      <div class="palette-item" data-type="hero">
+        <div class="pi-icon c-hero">🖼️</div>
+        <div><div class="pi-label">Hero</div><div class="pi-desc">Full-screen header</div></div>
+      </div>
+      <div class="palette-item" data-type="divider">
+        <div class="pi-icon c-divider">➖</div>
+        <div><div class="pi-label">Divider</div><div class="pi-desc">Section separator</div></div>
+      </div>
+
+      <div class="sl-cat">Content</div>
+      <div class="palette-item" data-type="text">
+        <div class="pi-icon c-text">📝</div>
+        <div><div class="pi-label">Text</div><div class="pi-desc">Heading & paragraph</div></div>
+      </div>
+      <div class="palette-item" data-type="quote">
+        <div class="pi-icon c-quote">💬</div>
+        <div><div class="pi-label">Quote</div><div class="pi-desc">Styled quotation</div></div>
+      </div>
+      <div class="palette-item" data-type="details">
+        <div class="pi-icon c-details">📋</div>
+        <div><div class="pi-label">Details</div><div class="pi-desc">Info cards</div></div>
+      </div>
+
+      <div class="sl-cat">Media</div>
+      <div class="palette-item" data-type="image">
+        <div class="pi-icon c-image">🎨</div>
+        <div><div class="pi-label">Image</div><div class="pi-desc">Single photo</div></div>
+      </div>
+      <div class="palette-item" data-type="carousel">
+        <div class="pi-icon c-carousel">🎠</div>
+        <div><div class="pi-label">Carousel</div><div class="pi-desc">Image slideshow</div></div>
+      </div>
+      <div class="palette-item" data-type="gallery">
+        <div class="pi-icon c-gallery">🖼</div>
+        <div><div class="pi-label">Gallery</div><div class="pi-desc">Photo grid</div></div>
+      </div>
+
+      <div class="sl-cat">Interactive</div>
+      <div class="palette-item" data-type="countdown">
+        <div class="pi-icon c-countdown">⏱️</div>
+        <div><div class="pi-label">Countdown</div><div class="pi-desc">Days until the day</div></div>
+      </div>
+      <div class="palette-item" data-type="rsvp">
+        <div class="pi-icon c-rsvp">📬</div>
+        <div><div class="pi-label">RSVP</div><div class="pi-desc">Form or link button</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTRE: Canvas -->
+  <main class="canvas-area" id="canvas-area">
+    <div class="canvas-page" id="canvas-page">
+      <div class="canvas-empty" id="canvas-empty">
+        <div class="ce-icon">🌸</div>
+        <p>Your wedding page is empty.<br><strong>Drag blocks</strong> from the left panel onto this canvas.</p>
+        <small>Or click any block in the palette to add it.</small>
+      </div>
+      <div id="canvas-inner"></div>
+    </div>
+  </main>
+
+  <!-- RIGHT: Properties -->
+  <aside class="sidebar-right">
+    <div class="sr-header">
+      <div class="sr-label">Properties</div>
+      <div class="sr-block-type" id="sr-block-type">No block selected</div>
+    </div>
+    <div class="sr-body" id="sr-body">
+      <div class="sr-empty">
+        <div class="se-icon">✦</div>
+        <p>Click any block on the canvas to edit its properties here.</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ══ MODAL: Sign In ══ -->
+<div class="modal-overlay" id="signin-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-body signin-modal-body">
+      <div class="sm-logo">✦ Wedding Studio</div>
+      <p class="sm-sub">Sign in to create and manage beautiful wedding pages stored in Firebase.</p>
+      <button class="google-btn" onclick="signInWithGoogle()">
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: New Wedding ══ -->
+<div class="modal-overlay" id="new-wedding-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Create New Wedding Page</span>
+      <button class="modal-close" onclick="closeModal('new-wedding-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-group">
+        <label class="modal-input-label">Couple's Names (used as URL ID)</label>
+        <input id="new-id" class="modal-input" placeholder="e.g. Andrea+Kylie" oninput="updateNewIdPreview()">
+        <small style="color:#aaa;font-size:.72rem;margin-top:5px;display:block">
+          Viewer URL: <code id="new-id-preview" style="color:var(--ed-accent);font-size:.72rem">?weddingId=</code>
+        </small>
+      </div>
+      <div class="modal-group">
+        <label class="modal-input-label">Display Title</label>
+        <input id="new-title" class="modal-input" placeholder="e.g. Andrea & Kylie's Wedding">
+      </div>
+      <div class="modal-group">
+        <label class="modal-input-label">Wedding Date</label>
+        <input id="new-date" class="modal-input" type="date">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="mf-btn" onclick="closeModal('new-wedding-modal')">Cancel</button>
+      <button class="mf-btn primary" onclick="createWedding()">Create Page</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Theme ══ -->
+<div class="modal-overlay" id="theme-modal">
+  <div class="modal wide">
+    <div class="modal-header">
+      <span class="modal-title">🎨 Theme & Style</span>
+      <button class="modal-close" onclick="closeModal('theme-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.78rem;color:#aaa;margin-bottom:16px">All changes apply live to the canvas and the published viewer.</p>
+
+      <div class="theme-section">Colour Palette</div>
+      <div class="theme-colors-grid" id="theme-colors"></div>
+
+      <div class="theme-section">Typography</div>
+      <div class="theme-font-row">
+        <div>
+          <label class="modal-input-label">Heading Font</label>
+          <select class="prop-select" id="theme-font-heading" onchange="onThemeFont('fontHeading',this.value)"></select>
+        </div>
+        <div>
+          <label class="modal-input-label">Body Font</label>
+          <select class="prop-select" id="theme-font-body" onchange="onThemeFont('fontBody',this.value)"></select>
+        </div>
+      </div>
+
+      <div class="theme-section">Preset Palettes</div>
+      <div class="presets-row" id="theme-presets"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="mf-btn" onclick="resetTheme()">Reset to Default</button>
+      <button class="mf-btn primary" onclick="closeModal('theme-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast"></div>
+
+<!-- ══ APP SCRIPTS ══ -->
+<script src="editor.js"></script>
+</body>
+</html>

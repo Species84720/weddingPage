@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RSVP Responses</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,300;0,400;1,300&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --primary:#c9a96e; --secondary:#2d4a3e; --bg:#fffdf8;
+      --text:#2c2c2c; --accent:#f0e6d3;
+    }
+    body { font-family:'Inter',sans-serif; background:#f4f4f8; color:var(--text); min-height:100vh; }
+
+    /* ── Top bar ── */
+    .topbar { background:var(--secondary); color:#fff; padding:0 28px;
+      display:flex; align-items:center; gap:16px; height:58px; }
+    .tb-logo { font-family:'Playfair Display'; font-style:italic; font-size:1.1rem; color:#c9a96e; }
+    .tb-sep  { width:1px; height:28px; background:rgba(255,255,255,.2); }
+    .tb-title { font-size:.82rem; letter-spacing:1px; opacity:.7; }
+    .tb-wedding { font-weight:600; font-size:.9rem; }
+    .tb-links { margin-left:auto; display:flex; gap:10px; }
+    .tb-link { color:rgba(255,255,255,.7); text-decoration:none; font-size:.78rem;
+      letter-spacing:.5px; padding:6px 12px; border:1px solid rgba(255,255,255,.2);
+      border-radius:4px; transition:all .15s; }
+    .tb-link:hover { background:rgba(255,255,255,.1); color:#fff; }
+
+    /* ── Loading / Error ── */
+    .state-box { padding:80px 40px; text-align:center; }
+    .state-icon { font-size:3rem; margin-bottom:16px; opacity:.4; }
+    .state-msg  { font-size:.95rem; color:#999; line-height:1.8; }
+
+    /* ── Stats strip ── */
+    .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+      gap:16px; padding:28px 32px; max-width:1100px; margin:0 auto; }
+    .stat-card { background:#fff; border-radius:10px; padding:22px 24px;
+      box-shadow:0 2px 12px rgba(0,0,0,.06); text-align:center; }
+    .stat-n { font-family:'Playfair Display'; font-size:2.4rem; font-weight:300;
+      color:var(--secondary); line-height:1; }
+    .stat-l { font-size:.72rem; text-transform:uppercase; letter-spacing:2px;
+      color:#aaa; margin-top:6px; }
+    .stat-card.accepting .stat-n { color:#4caf87; }
+    .stat-card.declining  .stat-n { color:#e05b6a; }
+    .stat-card.partner    .stat-n { color:var(--primary); }
+
+    /* ── Controls ── */
+    .controls { padding:0 32px 20px; max-width:1100px; margin:0 auto;
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .ctrl-search { padding:8px 14px; border:1px solid #e0e0e8; border-radius:6px;
+      font-size:.85rem; font-family:'Inter'; color:#333; outline:none; width:240px;
+      transition:border-color .15s; }
+    .ctrl-search:focus { border-color:var(--primary); }
+    .ctrl-filter { padding:8px 14px; border:1px solid #e0e0e8; border-radius:6px;
+      font-size:.82rem; font-family:'Inter'; background:#fff; color:#555; cursor:pointer; outline:none; }
+    .ctrl-count { font-size:.8rem; color:#aaa; margin-left:auto; }
+    .ctrl-export { padding:7px 16px; background:var(--secondary); color:#fff;
+      border:none; border-radius:6px; font-size:.78rem; font-family:'Inter';
+      cursor:pointer; letter-spacing:.5px; transition:background .15s; }
+    .ctrl-export:hover { background:var(--primary); }
+
+    /* ── Table ── */
+    .table-wrap { padding:0 32px 60px; max-width:1100px; margin:0 auto; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; background:#fff;
+      border-radius:10px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+    thead { background:var(--secondary); color:#fff; }
+    th { padding:13px 16px; font-size:.72rem; text-transform:uppercase; letter-spacing:1.5px;
+      font-weight:600; text-align:left; white-space:nowrap; }
+    th.sortable { cursor:pointer; user-select:none; }
+    th.sortable:hover { background:rgba(255,255,255,.1); }
+    th .sort-arrow { opacity:.4; margin-left:4px; }
+    th.asc  .sort-arrow::after { content:'▲'; }
+    th.desc .sort-arrow::after { content:'▼'; }
+    td { padding:12px 16px; font-size:.84rem; border-bottom:1px solid #f0f0f8;
+      vertical-align:top; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#fafafe; }
+    .badge { display:inline-block; padding:3px 8px; border-radius:20px;
+      font-size:.7rem; font-weight:600; letter-spacing:.5px; text-transform:uppercase; }
+    .badge.yes { background:#e8f5ee; color:#2e7d52; }
+    .badge.no  { background:#fde8ea; color:#b71c1c; }
+    .badge-partner { background:#fff8e1; color:#856c00; }
+    .td-time { font-size:.74rem; color:#bbb; white-space:nowrap; }
+    .td-name { font-weight:500; }
+    .empty-row td { text-align:center; padding:40px; color:#bbb; font-style:italic; }
+
+    /* ── Sign-in overlay ── */
+    .signin-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7);
+      display:flex; align-items:center; justify-content:center; z-index:100; }
+    .signin-box { background:#fff; border-radius:14px; padding:44px 36px;
+      text-align:center; max-width:380px; width:100%; box-shadow:0 24px 80px rgba(0,0,0,.3); }
+    .sb-logo { font-family:'Playfair Display'; font-style:italic; font-size:1.6rem;
+      color:var(--secondary); margin-bottom:8px; }
+    .sb-sub { font-size:.84rem; color:#888; margin-bottom:28px; line-height:1.7; }
+    .google-btn { display:flex; align-items:center; gap:10px; background:#fff;
+      border:2px solid #e0e0ee; border-radius:8px; padding:12px 20px; cursor:pointer;
+      font-size:.88rem; font-family:'Inter'; font-weight:600; color:#333;
+      transition:all .15s; width:100%; justify-content:center; }
+    .google-btn:hover { border-color:var(--primary); background:#fffaf2; }
+
+    /* ── Toast ── */
+    .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(90px);
+      background:#1a1a2e; color:#fff; padding:9px 18px; border-radius:7px; font-size:.82rem;
+      z-index:9999; transition:transform .28s; pointer-events:none; white-space:nowrap; }
+    .toast.show { transform:translateX(-50%) translateY(0); }
+    .toast.ok  { border-left:3px solid #4caf87; }
+    .toast.err { border-left:3px solid #e05b6a; }
+  </style>
+</head>
+<body>
+
+<!-- Sign-in overlay -->
+<div class="signin-overlay" id="signin-overlay" style="display:none">
+  <div class="signin-box">
+    <div class="sb-logo">✦ Wedding Studio</div>
+    <p class="sb-sub">Sign in to view RSVP responses for your wedding.</p>
+    <button class="google-btn" onclick="signInGoogle()">
+      <svg width="20" height="20" viewBox="0 0 24 24">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </button>
+  </div>
+</div>
+
+<!-- Top bar -->
+<header class="topbar">
+  <div class="tb-logo">✦ Wedding Studio</div>
+  <div class="tb-sep"></div>
+  <div class="tb-title">RSVP Responses</div>
+  <div class="tb-sep"></div>
+  <div class="tb-wedding" id="tb-wedding">Loading…</div>
+  <div class="tb-links">
+    <a class="tb-link" id="view-link" href="#" target="_blank">👁 View Page</a>
+    <a class="tb-link" href="editor.html">✏ Editor</a>
+  </div>
+</header>
+
+<!-- Main content -->
+<div id="main-content">
+  <div class="state-box" id="loading-state">
+    <div class="state-icon">⏳</div>
+    <p class="state-msg">Loading RSVP responses…</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Firebase ─────────────────────────────────────────────
+firebase.initializeApp(FIREBASE_CONFIG);
+const db   = firebase.firestore();
+const auth = firebase.auth();
+
+const params    = new URLSearchParams(window.location.search);
+const weddingId = params.get('weddingId');
+
+let currentUser = null;
+let allRsvps    = [];
+let sortField   = 'submittedAt';
+let sortDir     = 'desc';
+let filterVal   = 'all';
+let searchVal   = '';
+
+// ── Auth ─────────────────────────────────────────────────
+auth.onAuthStateChanged(async u => {
+  currentUser = u;
+  if (!u) {
+    document.getElementById('signin-overlay').style.display = 'flex';
+    showState('Sign in to view RSVP responses.');
+    return;
+  }
+  document.getElementById('signin-overlay').style.display = 'none';
+  if (!weddingId) {
+    showState('No <code>?weddingId=</code> in URL.', '🔗');
+    return;
+  }
+  await loadData();
+});
+
+async function signInGoogle() {
+  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+  catch(e) { toast('Sign-in failed', 'err'); }
+}
+
+// ── Load ─────────────────────────────────────────────────
+async function loadData() {
+  try {
+    // Verify ownership
+    const wSnap = await db.collection('weddings').doc(weddingId).get();
+    if (!wSnap.exists) { showState('Wedding not found.', '❓'); return; }
+    const wData = wSnap.data();
+    if (wData.ownerId !== currentUser.uid) {
+      showState('You do not have permission to view these responses.', '🔒'); return;
+    }
+
+    document.getElementById('tb-wedding').textContent = wData.coupleNames || weddingId;
+    document.getElementById('view-link').href = `index.html?weddingId=${encodeURIComponent(weddingId)}`;
+
+    // Load RSVPs
+    const snap = await db.collection('weddings').doc(weddingId)
+      .collection('rsvps').orderBy('submittedAt','desc').get();
+
+    allRsvps = snap.docs.map(d => ({ _id:d.id, ...d.data() }));
+    renderPage();
+  } catch(e) {
+    console.error(e);
+    showState('Error loading responses: ' + e.message, '⚠️');
+  }
+}
+
+// ── Render ───────────────────────────────────────────────
+function renderPage() {
+  const accepting = allRsvps.filter(r => r.attending === 'yes').length;
+  const declining = allRsvps.filter(r => r.attending === 'no').length;
+  const partners  = allRsvps.filter(r => r.partner   === 'yes').length;
+  const total     = allRsvps.length;
+
+  let filtered = [...allRsvps];
+  if (filterVal === 'yes') filtered = filtered.filter(r => r.attending === 'yes');
+  if (filterVal === 'no')  filtered = filtered.filter(r => r.attending === 'no');
+  if (searchVal) {
+    const q = searchVal.toLowerCase();
+    filtered = filtered.filter(r =>
+      (r.name||'').toLowerCase().includes(q)
+
+    );
+  }
+  // Sort
+  filtered.sort((a, b) => {
+    let av = a[sortField], bv = b[sortField];
+    if (sortField === 'submittedAt') {
+      av = av?.toDate?.() || new Date(0);
+      bv = bv?.toDate?.() || new Date(0);
+    } else {
+      av = (av||'').toLowerCase();
+      bv = (bv||'').toLowerCase();
+    }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ?  1 : -1;
+    return 0;
+  });
+
+  const html = `
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-n">${total}</div>
+        <div class="stat-l">Total Responses</div>
+      </div>
+      <div class="stat-card accepting">
+        <div class="stat-n">${accepting}</div>
+        <div class="stat-l">Accepting</div>
+      </div>
+      <div class="stat-card declining">
+        <div class="stat-n">${declining}</div>
+        <div class="stat-l">Declining</div>
+      </div>
+      <div class="stat-card partner">
+        <div class="stat-n">${partners}</div>
+        <div class="stat-l">Bringing Partner</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input type="text" class="ctrl-search" placeholder="🔍  Search by name…"
+        value="${esc(searchVal)}" oninput="searchVal=this.value;renderPage()">
+      <select class="ctrl-filter" onchange="filterVal=this.value;renderPage()">
+        <option value="all"${filterVal==='all'?' selected':''}>All responses</option>
+        <option value="yes"${filterVal==='yes'?' selected':''}>Accepting only</option>
+        <option value="no"${filterVal==='no'?' selected':''}>Declining only</option>
+      </select>
+      <span class="ctrl-count">${filtered.length} of ${total} shown</span>
+      <button class="ctrl-export" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable${sortField==='name'?' '+sortDir:''}" onclick="setSort('name')">
+              Name <span class="sort-arrow"></span>
+            </th>
+
+            <th class="sortable${sortField==='attending'?' '+sortDir:''}" onclick="setSort('attending')">
+              Attending <span class="sort-arrow"></span>
+            </th>
+            <th>Partner</th>
+            <th class="sortable${sortField==='submittedAt'?' '+sortDir:''}" onclick="setSort('submittedAt')">
+              Submitted <span class="sort-arrow"></span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length
+            ? filtered.map(r => `
+              <tr>
+                <td class="td-name">${esc(r.name||'—')}</td>
+
+                <td><span class="badge ${r.attending==='yes'?'yes':'no'}">${r.attending==='yes'?'✓ Attending':'✗ Declining'}</span></td>
+                <td>${r.partner==='yes'?'<span class="badge badge-partner">+ Partner</span>':'<span style="color:#ddd">—</span>'}</td>
+                <td class="td-time">${formatDate(r.submittedAt)}</td>
+              </tr>`).join('')
+            : `<tr class="empty-row"><td colspan="5">No responses match your filter.</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// ── Sorting ──────────────────────────────────────────────
+function setSort(field) {
+  if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortField = field; sortDir = 'asc'; }
+  renderPage();
+}
+
+// ── Export CSV ───────────────────────────────────────────
+function exportCSV() {
+  const rows = [['Name','Attending','Partner','Submitted']];
+  allRsvps.forEach(r => rows.push([
+    r.name||'',
+
+    r.attending==='yes'?'Yes':'No',
+    r.partner==='yes'?'Yes':'No',
+    formatDate(r.submittedAt),
+  ]));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `rsvps-${weddingId}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV exported', 'ok');
+}
+
+// ── Helpers ──────────────────────────────────────────────
+function formatDate(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+       + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+function showState(msg, icon='⏳') {
+  document.getElementById('main-content').innerHTML =
+    `<div class="state-box"><div class="state-icon">${icon}</div><p class="state-msg">${msg}</p></div>`;
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+let _toastTimer;
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
